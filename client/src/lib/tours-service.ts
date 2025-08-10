@@ -16,7 +16,12 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { TourPackage, TourPackageFormData, TourFilters, TourSearchParams } from "@/types/tours";
+import {
+  TourPackage,
+  TourPackageFormData,
+  TourFilters,
+  TourSearchParams,
+} from "@/types/tours";
 
 const TOURS_COLLECTION = "tourPackages";
 
@@ -24,10 +29,13 @@ const TOURS_COLLECTION = "tourPackages";
 // CREATE OPERATIONS
 // ============================================================================
 
-export async function createTour(tourData: TourPackageFormData, userId: string): Promise<string> {
+export async function createTour(
+  tourData: TourPackageFormData,
+  userId: string
+): Promise<string> {
   try {
     const now = Timestamp.now();
-    
+
     const tourPackage: Omit<TourPackage, "id"> = {
       ...tourData,
       media: {
@@ -178,13 +186,19 @@ export async function updateTour(
     };
 
     // If price changed, add to pricing history
-    if (updates.pricing?.original && updates.pricing.original !== currentData.pricing.original) {
+    if (
+      updates.pricing?.original &&
+      updates.pricing.original !== currentData.pricing.original
+    ) {
       const newPricingEntry = {
         date: now,
         price: updates.pricing.original,
         changedBy: userId,
       };
-      updateData.pricingHistory = [...currentData.pricingHistory, newPricingEntry];
+      updateData.pricingHistory = [
+        ...currentData.pricingHistory,
+        newPricingEntry,
+      ];
     }
 
     await updateDoc(docRef, updateData);
@@ -194,7 +208,10 @@ export async function updateTour(
   }
 }
 
-export async function updateTourStatus(id: string, status: "active" | "draft" | "archived"): Promise<void> {
+export async function updateTourStatus(
+  id: string,
+  status: "active" | "draft" | "archived"
+): Promise<void> {
   try {
     const docRef = doc(db, TOURS_COLLECTION, id);
     await updateDoc(docRef, {
@@ -308,7 +325,10 @@ export function validateTourData(data: TourPackageFormData): string[] {
     errors.push("Original price must be greater than 0");
   }
 
-  if (data.pricing.discounted && data.pricing.discounted >= data.pricing.original) {
+  if (
+    data.pricing.discounted &&
+    data.pricing.discounted >= data.pricing.original
+  ) {
     errors.push("Discounted price must be less than original price");
   }
 
