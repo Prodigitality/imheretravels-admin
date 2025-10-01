@@ -23,7 +23,7 @@ async function fetchTourPackages(): Promise<any[]> {
     console.log("📡 Fetching documents from tourPackages collection...");
     const packagesRef = collection(db, "tourPackages");
     const snapshot = await getDocs(packagesRef);
-    
+
     if (snapshot.empty) {
       console.log("❌ No documents found in tourPackages collection");
       return [];
@@ -34,7 +34,7 @@ async function fetchTourPackages(): Promise<any[]> {
       // Use spread operator to export all fields from the document
       const documentData = {
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       };
       documents.push(documentData);
     });
@@ -52,7 +52,7 @@ async function main() {
   try {
     // Fetch all documents from Firebase
     const documents = await fetchTourPackages();
-    
+
     if (documents.length === 0) {
       console.log("❌ No documents to export");
       return;
@@ -67,36 +67,35 @@ async function main() {
     });
 
     // Generate filename with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const filename = `tour-packages-${timestamp}.json`;
 
     // Write to exports directory
-    const outputPath = join(process.cwd(), 'exports', filename);
+    const outputPath = join(process.cwd(), "exports", filename);
 
     // Ensure exports directory exists
-    const fs = require('fs');
-    const exportsDir = join(process.cwd(), 'exports');
+    const fs = require("fs");
+    const exportsDir = join(process.cwd(), "exports");
     if (!fs.existsSync(exportsDir)) {
       fs.mkdirSync(exportsDir, { recursive: true });
     }
 
     // Write JSON file with all document data
     writeFileSync(outputPath, JSON.stringify(documents, null, 2));
-    
+
     console.log(`✅ JSON export completed successfully!`);
     console.log(`📁 File: ${filename}`);
     console.log(`📍 Path: ${outputPath}`);
     console.log(`📊 Total documents: ${documents.length}`);
 
     // Display summary of exported documents
-    console.log('\n📋 Exported Tour Packages Summary:');
+    console.log("\n📋 Exported Tour Packages Summary:");
     documents.forEach((doc, index) => {
-      const name = doc.name || 'No name';
-      const code = doc.tourCode || 'No code';
-      const status = doc.status || 'No status';
+      const name = doc.name || "No name";
+      const code = doc.tourCode || "No code";
+      const status = doc.status || "No status";
       console.log(`${index + 1}. ${name} | Code: ${code} | Status: ${status}`);
     });
-
   } catch (error) {
     console.error("❌ Error generating JSON file:", error);
     process.exit(1);
