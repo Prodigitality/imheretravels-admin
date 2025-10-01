@@ -13,111 +13,57 @@ import { writeFileSync } from "fs";
 import { join } from "path";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../migrations/firebase-config";
-import { CommunicationTemplate } from "../types/communications";
 
-console.log("🚀 Starting email templates JSON generation from Firebase...");
+console.log("🚀 Starting emailTemplates collection export...");
 
-// Fetch email templates from Firebase
-async function fetchEmailTemplatesFromFirebase(): Promise<
-  CommunicationTemplate[]
-> {
+// Fetch all documents from Firebase collection
+async function fetchEmailTemplates(): Promise<any[]> {
   try {
-    console.log("📡 Fetching email templates from Firebase...");
+    console.log("📡 Fetching documents from emailTemplates collection...");
     const templatesRef = collection(db, "emailTemplates");
     const snapshot = await getDocs(templatesRef);
 
     if (snapshot.empty) {
-      console.log("❌ No email templates found in Firebase");
+      console.log("❌ No documents found in emailTemplates collection");
       return [];
     }
 
-    const templates: CommunicationTemplate[] = [];
+    const documents: any[] = [];
     snapshot.forEach((doc) => {
-      const data = doc.data();
-      templates.push({
+      // Use spread operator to export all fields from the document
+      const documentData = {
         id: doc.id,
-        ...data,
-      } as CommunicationTemplate);
+        ...doc.data(),
+      };
+      documents.push(documentData);
     });
 
-    console.log(`✅ Fetched ${templates.length} email templates from Firebase`);
-    return templates;
+    console.log(`✅ Fetched ${documents.length} documents from Firebase`);
+    return documents;
   } catch (error) {
-    console.error("❌ Error fetching email templates from Firebase:", error);
+    console.error("❌ Error fetching documents from Firebase:", error);
     throw error;
   }
-}
-
-// Generate summary statistics
-function generateTemplateSummary(templates: CommunicationTemplate[]) {
-  const statusCounts = templates.reduce((acc, template) => {
-    acc[template.status] = (acc[template.status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const createdByCounts = templates.reduce((acc, template) => {
-    const createdBy = template.metadata?.createdBy || "unknown";
-    acc[createdBy] = (acc[createdBy] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const totalUsedCount = templates.reduce((acc, template) => {
-    return acc + (template.metadata?.usedCount || 0);
-  }, 0);
-
-  const averageUsedCount =
-    templates.length > 0 ? totalUsedCount / templates.length : 0;
-
-  return {
-    totalTemplates: templates.length,
-    statusSummary: statusCounts,
-    createdBySummary: createdByCounts,
-    totalUsedCount,
-    averageUsedCount: Math.round(averageUsedCount * 100) / 100,
-  };
 }
 
 // Main execution
 async function main() {
   try {
-    // Fetch email templates from Firebase
-    const templates = await fetchEmailTemplatesFromFirebase();
+    // Fetch all documents from Firebase
+    const documents = await fetchEmailTemplates();
 
-    if (templates.length === 0) {
-      console.log("❌ No email templates to export");
+    if (documents.length === 0) {
+      console.log("❌ No documents to export");
       return;
     }
 
-    // Generate summary
-    const summary = generateTemplateSummary(templates);
-
-    // Prepare export data
-    const exportedData = {
-      metadata: {
-        exportedAt: new Date().toISOString(),
-        totalTemplates: templates.length,
-        source: "Firebase emailTemplates collection",
-      },
-      summary,
-      templates: templates.map((template) => ({
-        id: template.id,
-        name: template.name,
-        subject: template.subject,
-        content: template.content,
-        variables: template.variables,
-        variableDefinitions: template.variableDefinitions,
-        status: template.status,
-        bccGroups: template.bccGroups,
-        metadata: {
-          createdAt:
-            template.metadata?.createdAt?.toDate?.()?.toISOString() || null,
-          updatedAt:
-            template.metadata?.updatedAt?.toDate?.()?.toISOString() || null,
-          createdBy: template.metadata?.createdBy,
-          usedCount: template.metadata?.usedCount || 0,
-        },
-      })),
-    };
+    // Sort by template name or document ID
+    documents.sort((a, b) => {
+      if (a.name && b.name) {
+        return a.name.localeCompare(b.name);
+      }
+      return a.id.localeCompare(b.id);
+    });
 
     // Generate filename with timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -133,19 +79,24 @@ async function main() {
       fs.mkdirSync(exportsDir, { recursive: true });
     }
 
-    // Write JSON file
-    writeFileSync(outputPath, JSON.stringify(exportedData, null, 2));
+    // Write JSON file with all document data
+    writeFileSync(outputPath, JSON.stringify(documents, null, 2));
 
-    console.log(`✅ JSON file generated successfully!`);
+    console.log(`✅ JSON export completed successfully!`);
     console.log(`📁 File: ${filename}`);
     console.log(`📍 Path: ${outputPath}`);
-    console.log(`📊 Templates: ${exportedData.metadata.totalTemplates}`);
-    console.log(`📈 Summary:`);
-    console.log(`   - Active: ${summary.statusSummary.active || 0}`);
-    console.log(`   - Draft: ${summary.statusSummary.draft || 0}`);
-    console.log(`   - Archived: ${summary.statusSummary.archived || 0}`);
-    console.log(`   - Total Used Count: ${summary.totalUsedCount}`);
-    console.log(`   - Average Used Count: ${summary.averageUsedCount}`);
+    console.log(`📊 Total documents: ${documents.length}`);
+
+    // Display summary of exported documents
+    console.log("\n📋 Exported Email Templates Summary:");
+    documents.forEach((doc, index) => {
+      const name = doc.name || "No name";
+      const status = doc.status || "No status";
+      const createdBy = doc.metadata?.createdBy || "Unknown";
+      console.log(
+        `${index + 1}. ${name} | Status: ${status} | Created by: ${createdBy}`
+      );
+    });
   } catch (error) {
     console.error("❌ Error generating JSON file:", error);
     process.exit(1);
