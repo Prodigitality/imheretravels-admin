@@ -663,7 +663,7 @@ export default function EditBookingModal({
     const isReadOnly = isFunction;
 
     const baseClasses = cn(
-      "w-full",
+      "w-full text-xs",
       error && "border-red-500",
       isReadOnly && "bg-muted cursor-not-allowed"
     );
@@ -684,7 +684,7 @@ export default function EditBookingModal({
               }}
               disabled={isReadOnly || isComputing}
             />
-            <Label htmlFor={fieldId} className="text-sm font-medium">
+            <Label htmlFor={fieldId} className="text-xs font-medium">
               {value ? "Yes" : "No"}
             </Label>
           </div>
@@ -750,7 +750,10 @@ export default function EditBookingModal({
             }}
             onBlur={() => handleFieldBlur(column.id)}
             onKeyDown={(e) => handleFieldKeyDown(e, column.id)}
-            className={baseClasses}
+            className={cn(
+              baseClasses,
+              "text-xs [&::-webkit-calendar-picker-indicator]:text-xs"
+            )}
             disabled={isReadOnly || isComputing}
           />
         );
@@ -810,7 +813,7 @@ export default function EditBookingModal({
                 isComputing && "opacity-50"
               )}
               disabled={true}
-              placeholder={isComputing ? "Computing..." : "Computed value"}
+              placeholder={isComputing ? "Computing..." : ""}
             />
             {isComputing && (
               <RefreshCw className="ml-2 h-4 w-4 animate-spin text-royal-purple" />
@@ -980,10 +983,10 @@ export default function EditBookingModal({
                       id={`edit-tab-${parentTab}`}
                       className="bg-white shadow-sm border border-border/50 scroll-mt-4"
                     >
-                      <CardHeader className="pb-2 bg-crimson-red/10 border-2 border-crimson-red/20 border-red-500 py-2">
-                        <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                      <CardHeader className="pb-1 bg-crimson-red/10 border-2 border-crimson-red/20 border-red-500 py-1">
+                        <CardTitle className="text-xs font-bold text-foreground flex items-center gap-2">
                           <div className="p-1 bg-crimson-red/10 rounded-full rounded-br-none">
-                            <IconComponent className="h-4 w-4 text-crimson-red" />
+                            <IconComponent className="h-3 w-3 text-crimson-red" />
                           </div>
                           {parentTab}
                         </CardTitle>
@@ -1005,15 +1008,15 @@ export default function EditBookingModal({
                                     : "hover:bg-muted/10"
                                 )}
                               >
-                                <div className="flex items-center gap-3 min-w-0 w-[40%] px-4 py-3 border-r border-purple-300">
+                                <div className="flex items-center gap-2 min-w-0 w-[40%] px-3 py-2 border-r border-purple-300">
                                   <Label
                                     htmlFor={`field-${column.id}`}
-                                    className="text-sm font-medium"
+                                    className="text-xs font-medium"
                                   >
                                     {column.columnName}
                                   </Label>
                                 </div>
-                                <div className="w-[60%] px-4 py-3">
+                                <div className="w-[60%] px-3 py-2">
                                   <div className="space-y-2">
                                     {renderFormField(column)}
                                     {error && (
