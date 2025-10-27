@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
     console.log("=== Gmail Send API Called ===");
 
     const body = await request.json();
-    const { to, cc, bcc, subject, body: emailBody, attachments } = body;
+    const { to, cc, bcc, subject, body: emailBody, attachments, threadId, inReplyTo, references } = body;
 
     console.log("Gmail send API called with:", {
       to,
@@ -14,6 +14,9 @@ export async function POST(request: NextRequest) {
       bodyLength: emailBody?.length || 0,
       bodyPreview: emailBody?.substring(0, 200) + "...",
       body: emailBody,
+      threadId,
+      inReplyTo,
+      references,
     });
 
     // Initialize Gmail API service
@@ -29,6 +32,9 @@ export async function POST(request: NextRequest) {
       subject,
       htmlContent: emailBody,
       attachments: attachments || [],
+      threadId,
+      inReplyTo,
+      references,
     });
 
     console.log("Email sent successfully via Gmail API:", result);
