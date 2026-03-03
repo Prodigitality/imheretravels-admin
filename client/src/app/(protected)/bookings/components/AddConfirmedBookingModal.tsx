@@ -92,7 +92,7 @@ export default function AddConfirmedBookingModal({
           b.bookingId.toLowerCase().includes(term) ||
           b.fullName.toLowerCase().includes(term) ||
           b.emailAddress.toLowerCase().includes(term) ||
-          b.tourPackageName.toLowerCase().includes(term)
+          b.tourPackageName.toLowerCase().includes(term),
       );
     }
 
@@ -117,7 +117,8 @@ export default function AddConfirmedBookingModal({
   }, [searchTerm, bookings, onlyCompletePayments]);
 
   const validateBooking = async (
-    booking: any
+    booking: any,
+    packAvailabilityMap?: Map<string, boolean>,
   ): Promise<BookingWithValidation> => {
     const errors: string[] = [];
     let isValid = true;
@@ -157,7 +158,7 @@ export default function AddConfirmedBookingModal({
       isValid = false;
     } else if (paid < totalCost) {
       errors.push(
-        `Payment incomplete (${paid.toFixed(2)} / ${totalCost.toFixed(2)})`
+        `Payment incomplete (${paid.toFixed(2)} / ${totalCost.toFixed(2)})`,
       );
       isValid = false;
     }
@@ -178,8 +179,16 @@ export default function AddConfirmedBookingModal({
     // Check if tour package has pre-departure pack
     let hasPreDeparturePack = false;
     try {
-      const pack = await findPackByTourPackageName(booking.tourPackageName);
-      hasPreDeparturePack = !!pack;
+      const normalizedTourName = String(booking.tourPackageName || "")
+        .toLowerCase()
+        .trim();
+
+      if (packAvailabilityMap && packAvailabilityMap.has(normalizedTourName)) {
+        hasPreDeparturePack = !!packAvailabilityMap.get(normalizedTourName);
+      } else {
+        const pack = await findPackByTourPackageName(booking.tourPackageName);
+        hasPreDeparturePack = !!pack;
+      }
     } catch (error) {
       console.error("Error checking pre-departure pack:", error);
     }
@@ -215,9 +224,32 @@ export default function AddConfirmedBookingModal({
         ...doc.data(),
       }));
 
+      const uniqueTourNames = Array.from(
+        new Set(
+          bookingsData
+            .map((b: any) => String(b.tourPackageName || "").trim())
+            .filter((name: string) => name.length > 0),
+        ),
+      );
+
+      const packAvailabilityEntries = await Promise.all(
+        uniqueTourNames.map(async (tourName) => {
+          try {
+            const pack = await findPackByTourPackageName(tourName);
+            return [tourName.toLowerCase().trim(), !!pack] as const;
+          } catch {
+            return [tourName.toLowerCase().trim(), false] as const;
+          }
+        }),
+      );
+
+      const packAvailabilityMap = new Map<string, boolean>(
+        packAvailabilityEntries,
+      );
+
       // Validate each booking
       const validatedBookings = await Promise.all(
-        bookingsData.map((b) => validateBooking(b))
+        bookingsData.map((b) => validateBooking(b, packAvailabilityMap)),
       );
 
       // Sort: valid bookings first, then by booking ID
@@ -249,7 +281,7 @@ export default function AddConfirmedBookingModal({
     try {
       // Get pre-departure pack
       const pack = await findPackByTourPackageName(
-        selectedBooking.tourPackageName
+        selectedBooking.tourPackageName,
       );
 
       const tourDate = selectedBooking.tourDate?.toDate
@@ -263,7 +295,7 @@ export default function AddConfirmedBookingModal({
         Timestamp.fromDate(tourDate),
         pack?.id || null,
         pack?.fileName || null,
-        "created"
+        "created",
       );
 
       toast({
@@ -292,7 +324,7 @@ export default function AddConfirmedBookingModal({
     try {
       // Get pre-departure pack
       const pack = await findPackByTourPackageName(
-        selectedBooking.tourPackageName
+        selectedBooking.tourPackageName,
       );
 
       const tourDate = selectedBooking.tourDate?.toDate
@@ -307,13 +339,13 @@ export default function AddConfirmedBookingModal({
         Timestamp.fromDate(tourDate),
         pack?.id || null,
         pack?.fileName || null,
-        "created"
+        "created",
       );
 
       // Send email
       const sendEmail = httpsCallable(
         functions,
-        "sendBookingConfirmationEmail"
+        "sendBookingConfirmationEmail",
       );
       const result = await sendEmail({ confirmedBookingId });
       const data = result.data as {
@@ -438,8 +470,8 @@ export default function AddConfirmedBookingModal({
                     selectedBooking?.id === booking.id
                       ? "bg-primary/10 border-l-4 border-primary"
                       : booking.isValid
-                      ? "hover:bg-muted/50"
-                      : "opacity-50 cursor-not-allowed bg-muted/20"
+                        ? "hover:bg-muted/50"
+                        : "opacity-50 cursor-not-allowed bg-muted/20"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
