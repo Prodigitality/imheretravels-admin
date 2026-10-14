@@ -1,20 +1,9 @@
 ﻿import { useCallback } from "react";
-import type { Firestore } from "firebase/firestore";
 import { SALE_CONFLICT_ERROR, runPaymentSuccessAction } from "../../actions/paymentSuccessAction";
 
 type UsePaymentSuccessFlowOptions = {
-  db: Firestore;
   email: string;
-  firstName: string;
-  lastName: string;
-  birthdate: string;
-  nationality: string;
-  bookingType: string;
-  groupSize: number;
   tourPackage: string;
-  tourDate: string;
-  selectedPackageName: string;
-  selectedPackageDeposit: number;
   completedSteps: number[];
   setCompletedSteps: (
     update: number[] | ((prev: number[]) => number[]),
@@ -24,18 +13,8 @@ type UsePaymentSuccessFlowOptions = {
 };
 
 export const usePaymentSuccessFlow = ({
-  db,
   email,
-  firstName,
-  lastName,
-  birthdate,
-  nationality,
-  bookingType,
-  groupSize,
   tourPackage,
-  tourDate,
-  selectedPackageName,
-  selectedPackageDeposit,
   completedSteps,
   setCompletedSteps,
   setPaymentConfirmed,
@@ -44,20 +23,10 @@ export const usePaymentSuccessFlow = ({
   const handlePaymentSuccess = useCallback(
     async (paymentIntentId?: string, paymentDocId?: string) => {
       await runPaymentSuccessAction({
-        db,
         paymentIntentId,
         paymentDocId,
         email,
-        firstName,
-        lastName,
-        birthdate,
-        nationality,
-        bookingType,
-        groupSize,
         tourPackage,
-        tourDate,
-        selectedPackageName,
-        selectedPackageDeposit,
         completedSteps,
         setCompletedSteps,
         setPaymentConfirmed,
@@ -77,18 +46,8 @@ export const usePaymentSuccessFlow = ({
       });
     },
     [
-      db,
       email,
-      firstName,
-      lastName,
-      birthdate,
-      nationality,
-      bookingType,
-      groupSize,
       tourPackage,
-      tourDate,
-      selectedPackageName,
-      selectedPackageDeposit,
       completedSteps,
       setCompletedSteps,
       setPaymentConfirmed,
