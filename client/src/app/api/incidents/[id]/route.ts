@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc, deleteDoc, Timestamp } from "firebase/firestore";
+import { db, doc, getDoc, updateDoc, deleteDoc, Timestamp } from "@/lib/server-firestore";
 import {
   uploadFile,
   deleteFile,
