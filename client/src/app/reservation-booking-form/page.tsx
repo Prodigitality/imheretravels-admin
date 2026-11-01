@@ -1019,6 +1019,8 @@ const Page = () => {
                             depositAmount={depositAmount}
                           />
 
+                          {/* Waits for the hold: starting without it would take the regular-price path. */}
+                          {sale.phase !== "loading" && (
                           <StripePayment
                             tourPackageId={tourPackage}
                             tourPackageName={selectedPackage?.name || ""}
@@ -1028,13 +1030,12 @@ const Page = () => {
                             paymentDocId={paymentDocId}
                             bookingType={bookingType}
                             numberOfGuests={numberOfPeople}
-                            saleHold={
-                              sale.phase === "active" || sale.phase === "secured"
-                                ? sale.holdParam
-                                : null
-                            }
+                            saleHold={sale.isSaleHold ? sale.holdParam : null}
                             onBeforeConfirm={
                               sale.isSaleHold ? sale.markPaying : undefined
+                            }
+                            onPaymentFailed={
+                              sale.isSaleHold ? sale.clearPaying : undefined
                             }
                             onSuccess={async (pid, docId) => {
                               if (sale.isSaleHold) sale.markSecured();
@@ -1043,6 +1044,7 @@ const Page = () => {
                             onError={() => {}}
                             onProcessingChange={(p) => setStep2Processing(p)}
                           />
+                          )}
                         </Step2PaymentStatePanel>
                       </div>
                     )}

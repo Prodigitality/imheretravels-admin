@@ -325,7 +325,8 @@ function ownsSlots(slots: SlotWithMs[], holdId: string, indexes: number[]) {
 
 /**
  * Called when the customer presses Pay. Moves the slots to `paying` and
- * extends the hold once, so card entry and 3-D Secure are never cut off.
+ * protects them past the timer, so card entry and 3-D Secure are never cut off.
+ * The timer the customer sees keeps running.
  */
 export async function markPaying(holdId: string, token: string): Promise<SaleHoldView> {
   const db = adminDb();
@@ -348,11 +349,47 @@ export async function markPaying(holdId: string, token: string): Promise<SaleHol
     const patch = {
       payingAt: hold.payingAt ?? tsFromMs(now),
       expiresAt: tsFromMs(until),
-      displayExpiresAt: tsFromMs(until),
     };
     tx.update(snap.ref, patch);
     return holdView(holdId, { ...hold, ...patch }, now);
   });
+}
+
+/**
+ * The payment didn't go through: drops the protection from markPaying, so the
+ * hold is back on its original timer and the customer can retry or leave. If
+ * that timer ran out meanwhile, the slots are freed now.
+ */
+export async function clearPaying(holdId: string, token: string): Promise<SaleHoldView> {
+  const db = adminDb();
+  let toCancel: string | null | undefined = null;
+  const view = await db.runTransaction(async (tx) => {
+    toCancel = null;
+    const now = Date.now();
+    const { snap, hold } = await loadHold(tx, holdId, token);
+    const iRef = inventoryRef(hold.saleId, hold.tourPackageId);
+    const inv = await tx.get(iRef);
+    if (hold.status !== "active" || !hold.payingAt) return holdView(holdId, hold, now);
+
+    const timerEnd = toMs(hold.displayExpiresAt) as number;
+    const timeUp = now >= timerEnd;
+    const until = timerEnd + HOLD_GRACE_MS;
+    const slots = (storedSlotsWithMs(inv.get("slots")) as SlotWithMs[]).map((s) => {
+      if (s.holdId !== holdId || s.status === "sold") return s;
+      return timeUp ? freed(s) : { ...s, status: "held" as SlotStatus, heldUntil: tsFromMs(until), heldUntilMs: until };
+    });
+    tx.update(iRef, { slots: slots.map(toStored), updatedAt: FieldValue.serverTimestamp() });
+    if (timeUp) {
+      toCancel = hold.stripeIntentId;
+      tx.update(snap.ref, { status: "expired", payingAt: null, expiredAt: FieldValue.serverTimestamp() });
+      return holdView(holdId, { ...hold, status: "expired", payingAt: null }, now);
+    }
+    const patch = { payingAt: null, expiresAt: tsFromMs(until) };
+    tx.update(snap.ref, patch);
+    return holdView(holdId, { ...hold, ...patch }, now);
+  });
+  await cancelIntents([toCancel]);
+  return view;
 }
 
 /** Records the PaymentIntent on the hold and its slots (init-payment). */

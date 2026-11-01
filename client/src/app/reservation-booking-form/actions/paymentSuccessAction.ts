@@ -24,6 +24,9 @@ type PaymentSuccessActionInput = {
   onError: (error: unknown) => void;
 };
 
+/** The payment went through after its held slots had gone, and was refunded. */
+export const SALE_CONFLICT_ERROR = "sale_conflict";
+
 export const runPaymentSuccessAction = async ({
   db,
   paymentIntentId,
@@ -53,6 +56,7 @@ export const runPaymentSuccessAction = async ({
       collection,
       query,
       where,
+      getDoc,
       getDocs,
     } = await import("firebase/firestore");
 
@@ -148,6 +152,14 @@ export const runPaymentSuccessAction = async ({
                 const bookingId = data?.booking?.id;
                 const bookingDocId = data?.booking?.documentId;
 
+                // Refunded because the slots had gone: no booking will come.
+                if (data?.sale?.conflict) {
+                  clearTimeout(timeoutId);
+                  unsubscribe();
+                  resolve("");
+                  return;
+                }
+
                 if (bookingId && bookingId !== "PENDING" && bookingDocId) {
                   clearTimeout(timeoutId);
                   unsubscribe();
@@ -168,6 +180,14 @@ export const runPaymentSuccessAction = async ({
         }
       } catch {
         // Preserve current behavior: continue even if webhook wait fails.
+      }
+    }
+
+    if (actualPaymentDocId) {
+      const finalDoc = await getDoc(doc(db, "stripePayments", actualPaymentDocId));
+      if (finalDoc.data()?.sale?.conflict) {
+        onError(new Error(SALE_CONFLICT_ERROR));
+        return;
       }
     }
 

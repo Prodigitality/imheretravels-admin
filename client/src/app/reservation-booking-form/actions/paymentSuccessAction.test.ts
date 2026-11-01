@@ -3,6 +3,7 @@ import { runPaymentSuccessAction } from "./paymentSuccessAction";
 
 const updateDocMock = vi.fn(async () => undefined);
 const getDocsMock = vi.fn(async () => ({ empty: true, docs: [] }));
+const getDocMock = vi.fn(async () => ({ data: (): Record<string, unknown> => ({}) }));
 
 vi.mock("firebase/firestore", () => ({
   doc: vi.fn(() => ({})),
@@ -12,6 +13,7 @@ vi.mock("firebase/firestore", () => ({
   query: vi.fn(() => ({})),
   where: vi.fn(() => ({})),
   getDocs: getDocsMock,
+  getDoc: getDocMock,
   onSnapshot: vi.fn(),
 }));
 
@@ -95,5 +97,39 @@ describe("runPaymentSuccessAction", () => {
     });
 
     expect(onError).toHaveBeenCalled();
+  });
+
+  it("doesn't confirm a sale payment that was refunded because its slots had gone", async () => {
+    updateDocMock.mockResolvedValue(undefined);
+    getDocMock.mockResolvedValueOnce({ data: () => ({ sale: { conflict: true } }) });
+    const setCompletedSteps = vi.fn();
+    const setPaymentConfirmed = vi.fn();
+    const onError = vi.fn();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: false, json: async () => ({}) } as any);
+
+    await runPaymentSuccessAction({
+      db: {} as any,
+      paymentIntentId: "pi_1",
+      paymentDocId: "doc_1",
+      email: "a@x.com",
+      firstName: "A",
+      lastName: "B",
+      birthdate: "1990-01-01",
+      nationality: "British",
+      bookingType: "Single Booking",
+      groupSize: 1,
+      tourPackage: "tour-1",
+      tourDate: "2026-12-01",
+      selectedPackageName: "Tour",
+      selectedPackageDeposit: 200,
+      completedSteps: [],
+      setCompletedSteps,
+      setPaymentConfirmed,
+      setBookingId: vi.fn(),
+      onError,
+    });
+
+    expect(setPaymentConfirmed).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledOnce();
   });
 });

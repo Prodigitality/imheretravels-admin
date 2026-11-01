@@ -8,6 +8,7 @@ import {
   setDoc,
   updateDoc,
   doc,
+  deleteField,
   serverTimestamp,
   query,
   where,
@@ -87,7 +88,8 @@ export async function POST(req: NextRequest) {
         );
         if (providedDocSnap.exists()) {
           const data = providedDocSnap.data() as any;
-          if (data?.payment?.stripeIntentId) {
+          // An intent made for a sale hold can't be paid at the regular price.
+          if (data?.payment?.stripeIntentId && !data?.sale) {
             try {
               const existingIntent = await stripe.paymentIntents.retrieve(
                 data.payment.stripeIntentId
@@ -140,7 +142,7 @@ export async function POST(req: NextRequest) {
     if (!existingSnap.empty) {
       const docSnap = existingSnap.docs[0];
       const data = docSnap.data() as any;
-      if (data?.payment?.stripeIntentId) {
+      if (data?.payment?.stripeIntentId && !data?.sale) {
         try {
           const existingIntent = await stripe.paymentIntents.retrieve(
             data.payment.stripeIntentId
@@ -211,6 +213,8 @@ export async function POST(req: NextRequest) {
         "payment.clientSecret": intent.client_secret,
         "payment.amount": amountGBP,
         "payment.currency": "GBP",
+        // A regular-price payment must not carry an earlier sale hold.
+        sale: deleteField(),
         "timestamps.updatedAt": serverTimestamp(),
       });
 

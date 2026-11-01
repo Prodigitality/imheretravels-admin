@@ -249,6 +249,15 @@ export const useSessionRestore = ({
           }
         }
 
+        // Arriving with a sale hold starts a new booking: a remembered payment
+        // belongs to an earlier hold, maybe on another tour.
+        if (searchParams?.get("hold")) {
+          for (const key of Object.keys(sessionStorage)) {
+            if (key.startsWith("stripe_payment_")) sessionStorage.removeItem(key);
+          }
+          return;
+        }
+
         for (let i = 0; i < sessionStorage.length; i++) {
           const key = sessionStorage.key(i);
           if (!key) continue;
