@@ -12,6 +12,7 @@ import type { SaleHoldView } from "@/types/sale-events";
 
 const STORAGE_KEY = "iht_sale_hold";
 const FROM_STORAGE_KEY = "iht_sale_hold_from";
+const RECLAIM_RETRY_MS = 6_000;
 
 /** The www page the customer held from (sale or tour page), to send them back to. */
 function readReturnPath(): string | null {
@@ -82,6 +83,15 @@ export function useSaleHold() {
       .then(async (res) => {
         if (!res.ok) throw new Error(res.status === 404 ? "invalid" : "error");
         applyView((await res.json()).hold);
+        // Back from a refresh: reclaim the hold. Repeated once in case the old
+        // page's "leaving" call reaches the server after this one.
+        const reclaim = () =>
+          fetch(`/api/public/sale/holds/${encodeURIComponent(parts.holdId)}/leave`, {
+            method: "DELETE",
+            headers: { "X-Hold-Token": parts.token },
+          }).catch(() => {});
+        void reclaim();
+        window.setTimeout(reclaim, RECLAIM_RETRY_MS);
       })
       .catch(() => setPhase("invalid"));
   }, [applyView]);
@@ -99,9 +109,10 @@ export function useSaleHold() {
     };
   }, [phase]);
 
-  // Closing or leaving warns, and leaving anyway gives the slots back. Browsers
-  // show their own wording here. Not during a payment: 3-D Secure and wallets
-  // may redirect, and the server refuses to release that hold anyway.
+  // Closing, leaving or refreshing warns, in the browser's own wording. Going
+  // ahead starts a short countdown on the server, which a refresh cancels when
+  // it loads, so only really leaving gives the slots back. Not during a payment:
+  // 3-D Secure and wallets may redirect.
   useEffect(() => {
     if (phase !== "active" || !hold || hold.paying) return;
     const warn = (e: BeforeUnloadEvent) => {
@@ -112,7 +123,7 @@ export function useSaleHold() {
     const giveBack = (e: PageTransitionEvent) => {
       const parts = splitHoldParam(holdParam);
       if (leavingRef.current || e.persisted || !parts) return;
-      void fetch(`/api/public/sale/holds/${encodeURIComponent(parts.holdId)}/release`, {
+      void fetch(`/api/public/sale/holds/${encodeURIComponent(parts.holdId)}/leave`, {
         method: "POST",
         headers: { "X-Hold-Token": parts.token },
         keepalive: true,
