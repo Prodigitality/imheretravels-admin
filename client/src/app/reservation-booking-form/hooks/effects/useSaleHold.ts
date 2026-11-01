@@ -6,11 +6,26 @@ import type { SaleHoldView } from "@/types/sale-events";
  * sale page. The hold lives on the server; this hook only reads it, shows the
  * countdown and tells the server when the customer presses Pay.
  *
- * The param is also kept in sessionStorage because the form rewrites its URL
+ * The params are also kept in sessionStorage because the form rewrites its URL
  * to `?paymentid=` once a payment doc exists.
  */
 
 const STORAGE_KEY = "iht_sale_hold";
+const FROM_STORAGE_KEY = "iht_sale_hold_from";
+
+/** The www page the customer held from (sale or tour page), to send them back to. */
+function readReturnPath(): string | null {
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get("from");
+    if (fromUrl && /^\/(?!\/)/.test(fromUrl)) {
+      sessionStorage.setItem(FROM_STORAGE_KEY, fromUrl);
+      return fromUrl;
+    }
+    return sessionStorage.getItem(FROM_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
 
 function readHoldParam(): string | null {
   try {
@@ -38,7 +53,10 @@ export function useSaleHold() {
   const [hold, setHold] = useState<SaleHoldView | null>(null);
   const [phase, setPhase] = useState<SaleHoldPhase>("none");
   const [now, setNow] = useState(() => Date.now());
+  const [returnPath, setReturnPath] = useState<string | null>(null);
   const offsetRef = useRef(0);
+  // Set when the page gives the slots back itself, so leaving doesn't warn.
+  const leavingRef = useRef(false);
 
   const applyView = useCallback((view: SaleHoldView) => {
     // Server clock offset, so a wrong device clock can't skew the countdown.
@@ -55,6 +73,7 @@ export function useSaleHold() {
     const parts = splitHoldParam(param);
     if (!param || !parts) return;
     setHoldParam(param);
+    setReturnPath(readReturnPath());
     setPhase("loading");
     fetch(`/api/public/sale/holds/${encodeURIComponent(parts.holdId)}`, {
       headers: { "X-Hold-Token": parts.token },
@@ -80,6 +99,33 @@ export function useSaleHold() {
     };
   }, [phase]);
 
+  // Closing or leaving warns, and leaving anyway gives the slots back. Browsers
+  // show their own wording here. Not during a payment: 3-D Secure and wallets
+  // may redirect, and the server refuses to release that hold anyway.
+  useEffect(() => {
+    if (phase !== "active" || !hold || hold.paying) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      if (leavingRef.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    const giveBack = (e: PageTransitionEvent) => {
+      const parts = splitHoldParam(holdParam);
+      if (leavingRef.current || e.persisted || !parts) return;
+      void fetch(`/api/public/sale/holds/${encodeURIComponent(parts.holdId)}/release`, {
+        method: "POST",
+        headers: { "X-Hold-Token": parts.token },
+        keepalive: true,
+      }).catch(() => {});
+    };
+    window.addEventListener("beforeunload", warn);
+    window.addEventListener("pagehide", giveBack);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      window.removeEventListener("pagehide", giveBack);
+    };
+  }, [phase, hold, holdParam]);
+
   const msLeft = hold ? Date.parse(hold.displayExpiresAt) - now : 0;
 
   useEffect(() => {
@@ -91,9 +137,11 @@ export function useSaleHold() {
       // for a hold whose payment has started.)
       const parts = splitHoldParam(holdParam);
       if (parts) {
+        // keepalive: the customer is redirected moments after this.
         void fetch(`/api/public/sale/holds/${encodeURIComponent(parts.holdId)}/release`, {
           method: "POST",
           headers: { "X-Hold-Token": parts.token },
+          keepalive: true,
         }).catch(() => {});
       }
     }
@@ -122,9 +170,25 @@ export function useSaleHold() {
     }
   }, [holdParam, applyView]);
 
+  /** The payment failed: the hold goes back to its timer, which never stopped. */
+  const clearPaying = useCallback(async () => {
+    const parts = splitHoldParam(holdParam);
+    if (!parts) return;
+    try {
+      const res = await fetch(`/api/public/sale/holds/${encodeURIComponent(parts.holdId)}/paying`, {
+        method: "DELETE",
+        headers: { "X-Hold-Token": parts.token },
+      });
+      if (res.ok) applyView((await res.json()).hold);
+    } catch {
+      // The server's protection runs out by itself.
+    }
+  }, [holdParam, applyView]);
+
   const clear = useCallback(() => {
     try {
       sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(FROM_STORAGE_KEY);
     } catch {}
   }, []);
 
@@ -135,6 +199,7 @@ export function useSaleHold() {
 
   /** "Change party": gives the slots back. */
   const release = useCallback(async () => {
+    leavingRef.current = true;
     const parts = splitHoldParam(holdParam);
     if (parts) {
       await fetch(`/api/public/sale/holds/${encodeURIComponent(parts.holdId)}/release`, {
@@ -149,9 +214,11 @@ export function useSaleHold() {
     holdParam,
     hold,
     phase,
+    returnPath,
     isSaleHold: phase !== "none",
     msLeft: Math.max(0, msLeft),
     markPaying,
+    clearPaying,
     markSecured,
     release,
     clear,

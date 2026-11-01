@@ -1,6 +1,6 @@
 ﻿import { useCallback } from "react";
 import type { Firestore } from "firebase/firestore";
-import { runPaymentSuccessAction } from "../../actions/paymentSuccessAction";
+import { SALE_CONFLICT_ERROR, runPaymentSuccessAction } from "../../actions/paymentSuccessAction";
 
 type UsePaymentSuccessFlowOptions = {
   db: Firestore;
@@ -63,6 +63,12 @@ export const usePaymentSuccessFlow = ({
         setPaymentConfirmed,
         setBookingId,
         onError: (error) => {
+          if (error instanceof Error && error.message === SALE_CONFLICT_ERROR) {
+            alert(
+              "Your held slots were no longer available, so your payment has been refunded and no booking was made. Please go back to the sale and try again.",
+            );
+            return;
+          }
           console.error("âŒ Error in payment success handler:", error);
           alert(
             "Payment processing encountered an error. Please refresh the page and verify your payment status.",

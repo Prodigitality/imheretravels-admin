@@ -12,6 +12,9 @@ import type { UseSaleHoldResult } from "../hooks/effects/useSaleHold";
 
 const WWW_BASE = process.env.NEXT_PUBLIC_WWW_URL || "https://imheretravels.com";
 
+/** How long "Your hold has ended" shows before sending the customer back. */
+const ENDED_REDIRECT_MS = 5_000;
+
 const gbp = (n: number) =>
   `£${n.toLocaleString("en-GB", { maximumFractionDigits: 2 })}`;
 
@@ -54,10 +57,21 @@ export default function SaleHoldBanner({
     }
   }, [msLeft, phase]);
 
+  const ended = phase === "expired" || phase === "invalid";
+  const returnUrl = `${WWW_BASE}${sale.returnPath ?? `/${hold?.saleSlug || "black-friday"}`}`;
+  const goBack = () => {
+    sale.clear();
+    window.location.href = returnUrl;
+  };
+
+  useEffect(() => {
+    if (!ended) return;
+    const id = window.setTimeout(goBack, ENDED_REDIRECT_MS);
+    return () => window.clearTimeout(id);
+  }, [ended]);
+
   if (phase === "none" || phase === "loading") return null;
 
-  const saleUrl = `${WWW_BASE}/${hold?.saleSlug || "black-friday"}`;
-  const ended = phase === "expired" || phase === "invalid";
   const urgent = phase === "active" && msLeft < 120_000;
   const slotsLabel = hold ? `${hold.partySize} ${hold.partySize === 1 ? "slot" : "slots"}` : "slots";
   const ordered = hold ? [...hold.slots].sort((a, b) => a.index - b.index) : [];
@@ -67,7 +81,7 @@ export default function SaleHoldBanner({
   const changeParty = async () => {
     setLeaving(true);
     await sale.release();
-    window.location.href = saleUrl;
+    window.location.href = returnUrl;
   };
 
   return (
@@ -79,15 +93,15 @@ export default function SaleHoldBanner({
         role="status"
       >
         <div
-          className={`mx-auto max-w-[760px] rounded-full border shadow-md backdrop-blur transition-colors ${
+          className={`mx-auto max-w-[760px] border shadow-md backdrop-blur transition-colors ${
             phase === "secured"
               ? "border-emerald-500/40 bg-emerald-50/95 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-100"
               : urgent
                 ? "border-[#EF3340] bg-[#EF3340] text-white"
                 : "border-[#EF3340]/30 bg-card/95 text-foreground"
-          } ${detailsOpen ? "rounded-2xl" : ""}`}
+          } ${detailsOpen ? "rounded-2xl" : "rounded-full"}`}
         >
-          <div className="flex h-10 items-center gap-2 pl-3 pr-1.5 text-sm">
+          <div className="flex h-10 items-center gap-2 pl-4 pr-1.5 text-sm">
             {phase === "secured" ? (
               <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
                 <path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 111.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" clipRule="evenodd" />
@@ -142,6 +156,7 @@ export default function SaleHoldBanner({
               </div>
               <p className="mt-1 opacity-75">
                 Only you can see this timer. Pay the reservation fee before it ends to secure your slots.
+                Closing or leaving this page gives up your slots.
               </p>
             </div>
           )}
@@ -159,18 +174,11 @@ export default function SaleHoldBanner({
               {phase === "invalid"
                 ? "This hold link is no longer valid."
                 : "Your slots were released so others can book them."}{" "}
-              Slots may still be available, though the next price can differ.
+              Slots may still be available, though the next price can differ. Taking you back now…
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction
-              onClick={() => {
-                sale.clear();
-                window.location.href = saleUrl;
-              }}
-            >
-              Back to the sale
-            </AlertDialogAction>
+            <AlertDialogAction onClick={goBack}>Go back now</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

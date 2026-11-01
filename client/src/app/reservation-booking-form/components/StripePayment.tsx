@@ -32,6 +32,8 @@ interface PaymentFormProps {
   isGuestBooking?: boolean;
   /** Runs before confirming; false aborts (e.g. a sale hold that ended). */
   onBeforeConfirm?: () => Promise<boolean>;
+  /** A confirm attempt ended without a payment. */
+  onPaymentFailed?: () => void;
 }
 
 function PaymentForm({
@@ -43,6 +45,7 @@ function PaymentForm({
   onProcessingChange,
   isGuestBooking = false,
   onBeforeConfirm,
+  onPaymentFailed,
 }: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
@@ -250,6 +253,7 @@ function PaymentForm({
           setIsProcessing(false);
           if (paymentIntent.last_payment_error) {
             const errorMsg = getErrorMessage(paymentIntent.last_payment_error);
+            onPaymentFailed?.();
             setMessage(errorMsg);
             setPaymentFailed(true);
             setDeclineCode(
@@ -425,6 +429,7 @@ function PaymentForm({
       // that Stripe Elements is already handling in its UI
       if (!hasMessage && !hasCode && !hasDeclineCode) {
         console.log("Stripe handling error in UI - no action needed");
+        onPaymentFailed?.();
         setIsProcessing(false);
         onProcessingChange?.(false);
         setShowModal(false);
@@ -436,6 +441,7 @@ function PaymentForm({
         console.log(
           "Stripe validation error - inline validation will handle this",
         );
+        onPaymentFailed?.();
         setIsProcessing(false);
         onProcessingChange?.(false);
         setShowModal(false);
@@ -466,6 +472,7 @@ function PaymentForm({
       } catch {}
 
       onError(errorMsg);
+      onPaymentFailed?.();
 
       setIsProcessing(false);
       onProcessingChange?.(false);
@@ -546,6 +553,7 @@ function PaymentForm({
           }, 4000);
 
           onError(requiresPaymentMsg);
+          onPaymentFailed?.();
 
           setIsProcessing(false);
           onProcessingChange?.(false);
@@ -602,6 +610,7 @@ function PaymentForm({
         case "canceled":
           // User or system canceled the payment
           const canceledMsg = "Payment was canceled. Please try again.";
+          onPaymentFailed?.();
           setMessage(canceledMsg);
           setPaymentFailed(true);
           setModalStatus("error");
@@ -636,6 +645,7 @@ function PaymentForm({
           }, 4000);
 
           onError(defaultMsg);
+          onPaymentFailed?.();
 
           setIsProcessing(false);
           onProcessingChange?.(false);
@@ -660,6 +670,7 @@ function PaymentForm({
       }, 4000);
 
       onError(unknownMsg);
+      onPaymentFailed?.();
 
       setIsProcessing(false);
       onProcessingChange?.(false);
@@ -985,6 +996,7 @@ interface StripePaymentProps {
   /** Black Friday hold link param `<holdId>.<token>`; the server prices the fee from it. */
   saleHold?: string | null;
   onBeforeConfirm?: () => Promise<boolean>;
+  onPaymentFailed?: () => void;
 
   // Guest booking specific props
   isGuestBooking?: boolean;
@@ -1017,6 +1029,7 @@ export default function StripePayment({
   numberOfGuests,
   saleHold,
   onBeforeConfirm,
+  onPaymentFailed,
   isGuestBooking = false,
   parentBookingId,
   guestEmail,
@@ -1404,6 +1417,7 @@ export default function StripePayment({
           onProcessingChange={onProcessingChange}
           isGuestBooking={isGuestBooking}
           onBeforeConfirm={onBeforeConfirm}
+          onPaymentFailed={onPaymentFailed}
         />
       </Elements>
     </>
