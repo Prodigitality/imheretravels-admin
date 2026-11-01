@@ -60,6 +60,7 @@ import { getDisplayedBalanceDue } from "@/lib/finance/balance-due";
 import { functionMap } from "@/app/functions/columns/functions-index";
 import { bookingService } from "@/services/booking-service";
 import { getSchedulePolicy } from "@/lib/schedule-policy";
+import { saleColumnValue } from "@/lib/sale/booking-display";
 import { checkOverduePayments } from "@/lib/booking-overdue";
 import SchedulePolicyBadge from "@/components/bookings/SchedulePolicyBadge";
 import TravelPartyCard, {
@@ -687,6 +688,10 @@ export default function BookingDetailModal({
     if (!currentBooking) return null;
 
     const value = (currentBooking as any)[column.id];
+    if (!value) {
+      const saleValue = saleColumnValue(currentBooking as any, column.id);
+      if (saleValue) return saleValue;
+    }
     if (value === null || value === undefined) return null;
 
     if (column.id === "addOns") return formatAddOnsSummary(value) || null;
