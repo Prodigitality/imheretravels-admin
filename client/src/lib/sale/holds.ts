@@ -1,11 +1,12 @@
 import "server-only";
 
 import Stripe from "stripe";
-import { FieldValue, type DocumentReference, type Timestamp, type Transaction } from "firebase-admin/firestore";
+import { FieldValue, type DocumentReference, type DocumentSnapshot, type Timestamp, type Transaction } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin-db";
 import type { HoldStatus, SaleHoldView, SlotStatus } from "@/types/sale-events";
 import {
   HOLD_GRACE_MS,
+  LEAVE_GRACE_MS,
   MAX_PARTY_SIZE,
   PAYING_EXTENSION_MS,
   effectiveStatus,
@@ -390,6 +391,56 @@ export async function clearPaying(holdId: string, token: string): Promise<SaleHo
   });
   await cancelIntents([toCancel]);
   return view;
+}
+
+/** Sets when a hold and its unsold slots run out. */
+function setHoldExpiry(
+  tx: Transaction,
+  iRef: DocumentReference,
+  holdRefDoc: DocumentReference,
+  inv: DocumentSnapshot,
+  holdId: string,
+  until: number,
+) {
+  const slots = (storedSlotsWithMs(inv.get("slots")) as SlotWithMs[]).map((s) =>
+    s.holdId === holdId && s.status !== "sold" ? { ...s, heldUntil: tsFromMs(until), heldUntilMs: until } : s,
+  );
+  tx.update(iRef, { slots: slots.map(toStored), updatedAt: FieldValue.serverTimestamp() });
+  tx.update(holdRefDoc, { expiresAt: tsFromMs(until) });
+}
+
+/**
+ * The hold's page closed or refreshed; a browser can't say which. The hold now
+ * runs out in moments unless markReturned reclaims it, so a refresh keeps the
+ * slots and closing gives them back. A payment in progress is left alone.
+ */
+export async function markLeaving(holdId: string, token: string) {
+  const db = adminDb();
+  await db.runTransaction(async (tx) => {
+    const now = Date.now();
+    const { snap, hold } = await loadHold(tx, holdId, token);
+    const iRef = inventoryRef(hold.saleId, hold.tourPackageId);
+    const inv = await tx.get(iRef);
+    if (hold.status !== "active" || hold.payingAt) return;
+    const until = Math.min(toMs(hold.expiresAt) ?? 0, now + LEAVE_GRACE_MS);
+    setHoldExpiry(tx, iRef, snap.ref, inv, holdId, until);
+  });
+}
+
+/** The page came back after markLeaving: the hold is back on its normal timer. */
+export async function markReturned(holdId: string, token: string): Promise<SaleHoldView> {
+  const db = adminDb();
+  return db.runTransaction(async (tx) => {
+    const now = Date.now();
+    const { snap, hold } = await loadHold(tx, holdId, token);
+    const iRef = inventoryRef(hold.saleId, hold.tourPackageId);
+    const inv = await tx.get(iRef);
+    const usual = (toMs(hold.displayExpiresAt) as number) + HOLD_GRACE_MS;
+    const left = hold.status === "active" && !hold.payingAt && (toMs(hold.expiresAt) as number) < usual;
+    if (!left || (toMs(hold.expiresAt) as number) <= now) return holdView(holdId, hold, now);
+    setHoldExpiry(tx, iRef, snap.ref, inv, holdId, usual);
+    return holdView(holdId, { ...hold, expiresAt: tsFromMs(usual) }, now);
+  });
 }
 
 /** Records the PaymentIntent on the hold and its slots (init-payment). */
