@@ -218,7 +218,7 @@ function TourEditorBody({
                     />
                     <span className={cn("font-medium tabular-nums", !d.included && "text-dark-gray")}>{d.label}</span>
                     <span className="ml-auto flex items-center gap-3 text-xs tabular-nums text-dark-gray">
-                      {!d.included && <span className="font-bold text-midnight">Not in sale</span>}
+                      {!d.included && <span className="font-bold text-midnight">Not on sale</span>}
                       {formatGBP(d.price)}
                     </span>
                   </label>
