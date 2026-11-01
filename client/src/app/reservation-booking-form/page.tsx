@@ -408,6 +408,12 @@ const Page = () => {
   const saleHold = sale.hold;
   const saleLocksSelection =
     !!saleHold && (sale.phase === "active" || sale.phase === "secured");
+  const saleExcludedDates = saleLocksSelection ? saleHold?.excludedDates : undefined;
+
+  // A hold can't be used on a date left out of the sale; the payment step refuses it too.
+  useEffect(() => {
+    if (tourDate && saleExcludedDates?.includes(tourDate)) setTourDate("");
+  }, [tourDate, saleExcludedDates, setTourDate]);
 
   // Sale holds: each traveller pays their own slot's price (slot order = traveller
   // order). Once a date is picked the discount comes off that date's price (its own
@@ -503,7 +509,9 @@ const Page = () => {
     { label: "Group Booking", value: "Group Booking" },
   ];
 
-  const tourDateOptions = (tourDates ?? []).map((d: string) => {
+  const tourDateOptions = (tourDates ?? [])
+    .filter((d: string) => !saleExcludedDates?.includes(d))
+    .map((d: string) => {
     const daysBetween = calculateDaysBetween(d);
     const isInvalid = daysBetween < MIN_DAYS_BEFORE_TOUR;
 

@@ -27,6 +27,8 @@ export interface SaleTourInput {
   order: number;
   /** Discount £ per slot, slot 1 first; 1..MAX_SLOTS. 1 slot = 1 person. */
   ladder: number[];
+  /** Date keys left out of the sale. */
+  excludedDates: string[];
 }
 
 export interface SaleInput {

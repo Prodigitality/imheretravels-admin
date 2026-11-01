@@ -14,11 +14,13 @@ import {
   numberList,
   previewTiers,
   removeTier,
+  saleDateRows,
   setTier,
   tierLocks,
   tierStatusLine,
   totalSlots,
   tourView,
+  withDateIncluded,
   type DraftTour,
   type Inventory,
   type TourView,
@@ -99,19 +101,21 @@ export default function SaleTourDrawer({
         )
       }
     >
-      {tour && view && <TourEditorBody tour={tour} view={view} inventory={inventory} now={now} onPatch={onPatch} />}
+      {tour && view && <TourEditorBody tour={tour} tourPkg={tourPkg} view={view} inventory={inventory} now={now} onPatch={onPatch} />}
     </SaleDrawer>
   );
 }
 
 function TourEditorBody({
   tour: t,
+  tourPkg,
   view,
   inventory,
   now,
   onPatch,
 }: {
   tour: DraftTour;
+  tourPkg?: TourPackage;
   view: TourView;
   inventory: Inventory;
   now: number;
@@ -126,6 +130,8 @@ function TourEditorBody({
   const discounts = t.tiers.map((x) => numOrNaN(x.discount));
   const notDescending = discounts.some((d, i) => i > 0 && Number.isFinite(d) && Number.isFinite(discounts[i - 1]) && d > discounts[i - 1]);
   const tiersPatch = (next: DraftTour["tiers"]) => onPatch({ tiers: next });
+  const dates = saleDateRows(t, tourPkg, now);
+  const datesIn = dates.filter((d) => d.included).length;
 
   return (
     <div className="flex flex-col gap-7">
@@ -191,6 +197,48 @@ function TourEditorBody({
               ))}
             </ul>
           </div>
+        )}
+      </section>
+
+      <section aria-labelledby={`${t.key}-dates-head`}>
+        <PanelSectionHead id={`${t.key}-dates-head`}>Tour dates</PanelSectionHead>
+        {dates.length === 0 ? (
+          <HelpText>This tour has no upcoming dates to choose from.</HelpText>
+        ) : (
+          <>
+            <ul className="divide-y divide-light-grey rounded-md border-2 border-light-grey">
+              {dates.map((d) => (
+                <li key={d.key}>
+                  <label className="flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2 font-body text-sm text-midnight hover:bg-light-grey/50">
+                    <input
+                      type="checkbox"
+                      checked={d.included}
+                      onChange={(e) => onPatch({ excludedDates: withDateIncluded(t, d.key, e.target.checked) })}
+                      className="size-4 shrink-0 accent-crimson-red [color-scheme:light]"
+                    />
+                    <span className={cn("font-medium tabular-nums", !d.included && "text-dark-gray")}>{d.label}</span>
+                    <span className="ml-auto flex items-center gap-3 text-xs tabular-nums text-dark-gray">
+                      {!d.included && <span className="font-bold text-midnight">Not in sale</span>}
+                      {formatGBP(d.price)}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+            <p className={cn("mt-2 font-sans text-sm font-bold tabular-nums", datesIn === 0 ? ERROR : "text-midnight")} role="status" aria-live="polite">
+              {datesIn} of {dates.length} date{dates.length === 1 ? "" : "s"} in the sale
+            </p>
+            {datesIn === 0 && (
+              <p className={cn("mt-2 flex items-start gap-1.5 font-body text-xs font-bold", ERROR)} role="alert">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                Keep at least one date in the sale, or remove this tour from it.
+              </p>
+            )}
+            <HelpText className="mt-3">
+              Unticked dates can&apos;t be booked at a sale price, but customers can still book them at the regular price. Sale prices start from the cheapest ticked date. New dates
+              added to the tour join the sale automatically. Bookings already made aren&apos;t affected.
+            </HelpText>
+          </>
         )}
       </section>
 

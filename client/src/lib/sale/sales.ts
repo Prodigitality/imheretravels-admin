@@ -41,22 +41,25 @@ export const SaleTourInput = z.object({
   order: z.number().int().nonnegative(),
   /** Discount £ per slot, slot 1 first. 1 slot = 1 person. */
   ladder: z.array(z.number().nonnegative()).min(1).max(MAX_SLOTS),
+  /** Date keys left out of the sale. */
+  excludedDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(200).default([]),
 });
 
 export interface TourFacts {
   name: string;
   slug: string;
   coverImage: string;
-  /** "From" price per person: lowest upcoming date price (date's own price, else `pricing.original`). */
+  /** "From" price per person: lowest upcoming sale date price (date's own price, else `pricing.original`). */
   originalPrice: number;
   pricesVary: boolean;
 }
 
 /** Live tour data for sale tours, keyed by tourPackages id. Missing tours are absent. */
-export async function tourFacts(ids: string[]): Promise<Map<string, TourFacts>> {
-  const unique = [...new Set(ids.filter(Boolean))];
+export async function tourFacts(saleTours: { tourPackageId: string; excludedDates?: string[] }[]): Promise<Map<string, TourFacts>> {
+  const unique = [...new Set(saleTours.map((t) => t.tourPackageId).filter(Boolean))];
   const out = new Map<string, TourFacts>();
   if (!unique.length) return out;
+  const excluded = new Map(saleTours.map((t) => [t.tourPackageId, t.excludedDates ?? []]));
   const snaps = await adminDb().getAll(...unique.map((id) => adminDb().collection("tourPackages").doc(id)));
   for (const s of snaps) {
     if (!s.exists) continue;
@@ -66,7 +69,7 @@ export async function tourFacts(ids: string[]): Promise<Map<string, TourFacts>> 
       slug: s.get("slug") || "",
       coverImage: s.get("media.coverImage") ?? "",
       ...(() => {
-        const info = tourPriceInfo(Number(s.get("pricing.original")) || 0, s.get("travelDates"));
+        const info = tourPriceInfo(Number(s.get("pricing.original")) || 0, s.get("travelDates"), undefined, excluded.get(s.id));
         return { originalPrice: info.fromPrice, pricesVary: info.pricesVary };
       })(),
     });
@@ -124,7 +127,7 @@ export async function getSale(saleId: string): Promise<SaleWithInventory | null>
   if (!s.exists) return null;
   const inv = await saleRef(saleId).collection(SALE_COL.inventory).get();
   const sale = serializeSale(s);
-  const facts = await tourFacts(sale.tours.map((t) => t.tourPackageId));
+  const facts = await tourFacts(sale.tours);
   const tours = sale.tours.map((t) => {
     const f = facts.get(t.tourPackageId);
     return f
@@ -206,7 +209,7 @@ export async function saveSale(saleId: string | null, input: SaleInputT, uid: st
   if (saleId && !existing?.exists) throw new SaleError(404, "sale_not_found");
 
   // Each sale tour must be a real tour; its data is copied from it (and read live on display).
-  const facts = await tourFacts(input.tours.map((t) => t.tourPackageId));
+  const facts = await tourFacts(input.tours);
   const missing = input.tours.find((t) => !facts.has(t.tourPackageId));
   if (missing) throw new SaleError(400, "tour_not_found", { tourPackageId: missing.tourPackageId });
   const tours = input.tours.map((t) => {
@@ -217,6 +220,7 @@ export async function saveSale(saleId: string | null, input: SaleInputT, uid: st
       displayName: f.name,
       tourName: f.name,
       originalPrice: f.originalPrice,
+      excludedDates: t.excludedDates,
       ...(f.coverImage ? { coverImage: f.coverImage } : {}),
       order: t.order,
     };
