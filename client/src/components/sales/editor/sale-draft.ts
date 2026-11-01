@@ -83,6 +83,8 @@ export interface DraftTour {
   saved: { name: string; slug: string; coverImage?: string; originalPrice: number };
   /** Price tiers in sale order: tier 1's slots sell first. */
   tiers: DraftTier[];
+  /** Travel dates left out of the sale, as date keys. */
+  excludedDates: string[];
   /** CSV import notes for this tour. */
   notes: string[];
 }
@@ -165,14 +167,37 @@ export function tourView(t: DraftTour, pkg: TourPackage | undefined): TourView {
   return {
     name: pkg.name || t.saved.name,
     coverImage: pkg.media?.coverImage || t.saved.coverImage,
-    // Same "from" price the sale page shows: the cheapest upcoming date's price
-    // (a date's own price when set, else the tour's).
-    originalPrice: tourPriceInfo(Number(pkg.pricing?.original) || 0, pkg.travelDates).fromPrice,
+    // Same "from" price the sale page shows: the cheapest upcoming sale date's
+    // price (a date's own price when set, else the tour's).
+    originalPrice: tourPriceInfo(Number(pkg.pricing?.original) || 0, pkg.travelDates, undefined, t.excludedDates).fromPrice,
     status: pkg.status,
     publicUrl: pkg.status === "active" && pkg.slug ? `${WWW_ORIGIN}/tours/${pkg.slug}` : null,
     editUrl,
   };
 }
+
+export interface SaleDateRow {
+  key: string;
+  /** e.g. "Jan 16, 2027", as the reservation form shows it. */
+  label: string;
+  price: number;
+  included: boolean;
+}
+
+// UTC, because a date key is the UTC day of the travel date.
+const dateLabel = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+
+/** The tour's upcoming bookable dates, soonest first, and whether each is in the sale. */
+export function saleDateRows(t: DraftTour, pkg: TourPackage | undefined, now = Date.now()): SaleDateRow[] {
+  if (!pkg) return [];
+  const { byDate } = tourPriceInfo(Number(pkg.pricing?.original) || 0, pkg.travelDates, now);
+  return [...byDate]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, price]) => ({ key, label: dateLabel.format(Date.parse(key)), price, included: !t.excludedDates.includes(key) }));
+}
+
+export const withDateIncluded = (t: DraftTour, key: string, included: boolean): string[] =>
+  included ? t.excludedDates.filter((k) => k !== key) : [...new Set([...t.excludedDates, key])].sort();
 
 // ---------------------------------------------------------------------------
 // Building drafts
@@ -205,6 +230,7 @@ export function draftFromSale(sale: SaleWithInventory): SaleDraft {
         tourPackageId: t.tourPackageId,
         saved: { name: t.tourName || t.displayName, slug: t.tourSlug, coverImage: t.coverImage, originalPrice: t.originalPrice },
         tiers: ladder.length ? toDraftTiers(ladderToTiers(ladder)) : [newTier()],
+        excludedDates: t.excludedDates ?? [],
         notes: [],
       };
     }),
@@ -241,6 +267,7 @@ export function draftFromTour(tour: TourPackage, csv?: CsvTourGroup): DraftTour 
     tourPackageId: tour.id,
     saved: { name: tour.name ?? "", slug: tour.slug ?? "", coverImage: tour.media?.coverImage || undefined, originalPrice: Number(tour.pricing?.original) || 0 },
     tiers: csv?.tiers.length ? toDraftTiers(csv.tiers) : [newTier()],
+    excludedDates: [],
     notes: [],
   };
 }
@@ -248,7 +275,7 @@ export function draftFromTour(tour: TourPackage, csv?: CsvTourGroup): DraftTour 
 /** Comparable form of a draft, for the unsaved-changes check (ignores React keys and notes). */
 export function draftSnapshot(d: SaleDraft): string {
   const { tours, slugTouched: _touched, ...rest } = d;
-  return JSON.stringify([rest, tours.map((t) => [t.tourPackageId, t.tiers.map((x) => [x.discount, x.count])])]);
+  return JSON.stringify([rest, tours.map((t) => [t.tourPackageId, t.tiers.map((x) => [x.discount, x.count]), t.excludedDates])]);
 }
 
 // ---------------------------------------------------------------------------
@@ -524,8 +551,10 @@ export function toSaleInput(
     if (tierDiscounts.some((n) => !Number.isFinite(n) || n < 0)) err("tours", `${label}: enter a discount (£0 or more) for every tier`);
     const free = freeTiers(t, view.originalPrice);
     if (free.length) warnings.push(`${label}: tier ${numberList(free)} would sell at £0 (discount ≥ ${formatGBP(view.originalPrice)})`);
+    const dates = saleDateRows(t, pkg);
+    if (dates.length > 0 && dates.every((d) => !d.included)) err("tours", `${label}: keep at least one tour date in the sale`);
     const ladder = tiersToLadder(t.tiers.map((x, j) => ({ discount: tierDiscounts[j], count: x.count })));
-    return { tourPackageId: t.tourPackageId, order: i, ladder };
+    return { tourPackageId: t.tourPackageId, order: i, ladder, excludedDates: t.excludedDates };
   });
   if (errors.length) return { input: null, errors, warnings };
   return {

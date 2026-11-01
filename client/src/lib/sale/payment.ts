@@ -20,14 +20,14 @@ function dateKey(v: unknown): string | null {
  * (or the chosen date's custom deposit, as the form shows it) × party size.
  * The amount the browser sends is never trusted for a sale.
  */
-async function priceForDate(tourPackageId: string, tourDate: string | undefined, partySize: number) {
+async function priceForDate(tourPackageId: string, tourDate: string | undefined, partySize: number, excludedDates: string[]) {
   const tour = await adminDb().collection("tourPackages").doc(tourPackageId).get();
   if (!tour.exists) throw new SaleError(404, "tour_not_found");
   const pricing = tour.get("pricing") ?? {};
   const dates: { startDate: unknown; customDeposit?: number | null; hasCustomDeposit?: boolean; isAvailable?: boolean; customOriginal?: number | null }[] =
     tour.get("travelDates") ?? [];
   const date = tourDate ? dates.find((d) => d.isAvailable !== false && dateKey(d.startDate) === tourDate) : undefined;
-  if (tourDate && !date) throw new SaleError(409, "tour_date_unavailable");
+  if (tourDate && (!date || excludedDates.includes(tourDate))) throw new SaleError(409, "tour_date_unavailable");
   const perPerson =
     date?.hasCustomDeposit === true && typeof date.customDeposit === "number"
       ? date.customDeposit
@@ -68,7 +68,7 @@ export async function initSaleReservationPayment(opts: {
     await stripe().paymentIntents.cancel(data.payment.stripeIntentId).catch(() => {});
   }
 
-  const priced = await priceForDate(hold.tourPackageId, data.tour?.date || undefined, hold.partySize);
+  const priced = await priceForDate(hold.tourPackageId, data.tour?.date || undefined, hold.partySize, hold.excludedDates ?? []);
   const amountGBP = priced.fee;
   // Exact per-slot prices for the chosen date (the hold had "from" prices).
   const slots = [...hold.slots]

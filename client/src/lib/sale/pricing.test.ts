@@ -4,6 +4,23 @@ import { datePrice, slotPrice, tourPriceInfo, travelDateKey } from "./pricing";
 const NOW = Date.parse("2026-11-01T00:00:00Z");
 const at = (iso: string) => ({ toMillis: () => Date.parse(iso) });
 
+describe("dates left out of the sale", () => {
+  const dates = [
+    { startDate: at("2027-01-16T00:00:00Z"), customOriginal: 999 },
+    { startDate: at("2027-02-20T00:00:00Z"), customOriginal: 1199 },
+    { startDate: at("2027-03-20T00:00:00Z"), customOriginal: 1299 },
+  ];
+
+  it("don't set the from price or count as a price difference", () => {
+    const all = tourPriceInfo(1199, dates, NOW);
+    expect(all.fromPrice).toBe(999);
+    const info = tourPriceInfo(1199, dates, NOW, ["2027-01-16", "2027-03-20"]);
+    expect(info.fromPrice).toBe(1199);
+    expect(info.pricesVary).toBe(false);
+    expect([...info.byDate.keys()]).toEqual(["2027-02-20"]);
+  });
+});
+
 describe("date-based sale pricing", () => {
   it("uses a date's own price when it has one, else the tour price", () => {
     expect(datePrice(1699, { customOriginal: 1899 })).toBe(1899);

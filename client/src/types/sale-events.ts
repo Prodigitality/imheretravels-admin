@@ -36,6 +36,8 @@ export interface SaleTour {
   originalPrice: number;
   /** Upcoming dates have different prices, so the sale price depends on the date. */
   pricesVary?: boolean;
+  /** Travel dates left out of the sale, as date keys (UTC ISO day). Dates join the sale by default. */
+  excludedDates?: string[];
   coverImage?: string;
   order: number;
 }
@@ -106,6 +108,8 @@ export interface SaleHoldView {
   partySize: number;
   /** salePrice/originalPrice are "from" prices until a date is chosen; discountGBP is fixed. */
   slots: { index: number; salePrice: number; originalPrice: number; discountGBP?: number; paymentLinkUrl?: string | null }[];
+  /** Travel dates this hold can't be used on; fixed at claim, like its prices. */
+  excludedDates: string[];
   status: HoldStatus;
   paying: boolean;
   /** What the countdown shows; the server keeps the hold a little longer. */

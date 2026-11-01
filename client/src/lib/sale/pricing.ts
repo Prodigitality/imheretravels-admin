@@ -42,12 +42,18 @@ export interface TourPriceInfo {
   byDate: Map<string, number>;
 }
 
-export function tourPriceInfo(basePrice: number, travelDates: RawTravelDate[] | undefined, nowMs = Date.now()): TourPriceInfo {
+export function tourPriceInfo(
+  basePrice: number,
+  travelDates: RawTravelDate[] | undefined,
+  nowMs = Date.now(),
+  /** Date keys left out of the sale: they don't set the "from" price. */
+  excludedDates: string[] = [],
+): TourPriceInfo {
   const byDate = new Map<string, number>();
   for (const d of travelDates ?? []) {
     if (d?.isAvailable === false) continue;
     const key = travelDateKey(d.startDate);
-    if (!key || Date.parse(`${key}T23:59:59Z`) < nowMs) continue;
+    if (!key || Date.parse(`${key}T23:59:59Z`) < nowMs || excludedDates.includes(key)) continue;
     byDate.set(key, datePrice(basePrice, d));
   }
   const prices = [...byDate.values()];

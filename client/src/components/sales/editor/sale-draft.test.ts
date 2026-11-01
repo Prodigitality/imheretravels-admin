@@ -6,14 +6,18 @@ import { MAX_SLOTS, parseSaleCsv } from "../sale-utils";
 import {
   applyCsvGroup,
   draftFromTour,
+  draftSnapshot,
   flatDiscounts,
   ladderToTiers,
+  saleDateRows,
   tierLocks,
   tierOfSlot,
   tiersToLadder,
+  tourView,
   parseRedirectSlugs,
   toSaleInput,
   newSaleDraft,
+  withDateIncluded,
   type DraftTour,
 } from "./sale-draft";
 
@@ -145,7 +149,57 @@ describe("toSaleInput", () => {
     d.tours = [draftFromTour(tour("A"), { label: "A", tiers: [{ discount: 500, count: 1 }, { discount: 300, count: 2 }], warnings: [] })];
     const { input, errors } = toSaleInput(d, { unmatched: 0, otherSlugs: [], tourById: new Map([["A", tour("A")]]), toursLoaded: true });
     expect(errors).toEqual([]);
-    expect(input?.tours).toEqual([{ tourPackageId: "A", order: 0, ladder: [500, 300, 300] }]);
+    expect(input?.tours).toEqual([{ tourPackageId: "A", order: 0, ladder: [500, 300, 300], excludedDates: [] }]);
+  });
+
+  describe("tour dates in the sale", () => {
+    const at = (iso: string) => ({ toMillis: () => Date.parse(iso) });
+    const NOW = Date.parse("2026-11-02T00:00:00Z");
+    const dated = {
+      ...tour("A", 1199),
+      travelDates: [
+        { startDate: at("2027-02-20T00:00:00Z"), isAvailable: true },
+        { startDate: at("2027-01-16T00:00:00Z"), isAvailable: true, customOriginal: 999 },
+        { startDate: at("2026-10-01T00:00:00Z"), isAvailable: true },
+        { startDate: at("2027-03-20T00:00:00Z"), isAvailable: false },
+      ],
+    } as unknown as TourPackage;
+    const draft = (excludedDates: string[]) => {
+      const d = newSaleDraft(true);
+      d.tours = [{ ...draftFromTour(dated, { label: "A", tiers: [{ discount: 100, count: 1 }], warnings: [] }), excludedDates }];
+      return d;
+    };
+    const save = (excludedDates: string[]) => toSaleInput(draft(excludedDates), { unmatched: 0, otherSlugs: [], tourById: new Map([["A", dated]]), toursLoaded: true });
+
+    it("lists upcoming bookable dates, soonest first, with the form's date label", () => {
+      expect(saleDateRows(draft(["2027-01-16"]).tours[0], dated, NOW)).toEqual([
+        { key: "2027-01-16", label: "Jan 16, 2027", price: 999, included: false },
+        { key: "2027-02-20", label: "Feb 20, 2027", price: 1199, included: true },
+      ]);
+    });
+
+    it("toggles a date without duplicates", () => {
+      const t = draft(["2027-02-20"]).tours[0];
+      expect(withDateIncluded(t, "2027-01-16", false)).toEqual(["2027-01-16", "2027-02-20"]);
+      expect(withDateIncluded(t, "2027-02-20", false)).toEqual(["2027-02-20"]);
+      expect(withDateIncluded(t, "2027-02-20", true)).toEqual([]);
+    });
+
+    it("saves the excluded dates and prices the tour from the dates left", () => {
+      expect(save(["2027-01-16"]).input?.tours[0].excludedDates).toEqual(["2027-01-16"]);
+      expect(tourView(draft([]).tours[0], dated).originalPrice).toBe(999);
+      expect(tourView(draft(["2027-01-16"]).tours[0], dated).originalPrice).toBe(1199);
+    });
+
+    it("refuses a tour with every date left out", () => {
+      const res = save(["2027-01-16", "2027-02-20"]);
+      expect(res.input).toBeNull();
+      expect(res.errors.map((e) => e.message)).toEqual(["A: keep at least one tour date in the sale"]);
+    });
+
+    it("counts a date change as an unsaved change", () => {
+      expect(draftSnapshot(draft(["2027-01-16"]))).not.toBe(draftSnapshot(draft([])));
+    });
   });
 
   it("refuses more than MAX_SLOTS slots and warns on £0 tiers", () => {

@@ -65,6 +65,8 @@ interface StoredHold {
   partySize: number;
   slotIndexes: number[];
   slots: { index: number; salePrice: number; originalPrice: number; discountGBP?: number }[];
+  /** Travel dates left out of the sale when this hold was claimed. */
+  excludedDates?: string[];
   email: string;
   tokenHash: string;
   status: HoldStatus;
@@ -127,6 +129,7 @@ function holdView(id: string, h: StoredHold, nowMs: number, paymentLinks?: Map<n
     displayName: h.displayName,
     partySize: h.partySize,
     slots: h.slots.map((s) => ({ ...s, paymentLinkUrl: paymentLinks?.get(s.index) ?? null })),
+    excludedDates: h.excludedDates ?? [],
     status,
     paying: !!h.payingAt,
     displayExpiresAt: toIso(h.displayExpiresAt)!,
@@ -175,9 +178,12 @@ export async function claimSlots(input: ClaimInput): Promise<SaleHoldView & { to
     // Prices come from the tour's current original price, not a stored copy.
     const tourSnap = await tx.get(db.collection("tourPackages").doc(input.tourPackageId));
     // "From" price until the customer picks a date; init-payment re-prices on the date.
+    const excludedDates: string[] = tour.excludedDates ?? [];
     const basePrice = tourPriceInfo(
       Number(tourSnap.get("pricing.original")) || Number(tour.originalPrice) || 0,
       tourSnap.get("travelDates"),
+      undefined,
+      excludedDates,
     ).fromPrice;
     const tourName: string = tourSnap.get("name") || tour.tourName || "";
     const tourSlug: string = tourSnap.get("slug") || tour.tourSlug || "";
@@ -276,6 +282,7 @@ export async function claimSlots(input: ClaimInput): Promise<SaleHoldView & { to
         salePrice: salePriceFor(basePrice, s.discountGBP),
         originalPrice: basePrice,
       })),
+      excludedDates,
       email,
       tokenHash,
       status: "active",
