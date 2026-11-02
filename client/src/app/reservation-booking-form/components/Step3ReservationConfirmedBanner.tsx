@@ -1,9 +1,15 @@
 type Step3ReservationConfirmedBannerProps = {
   bookingId: string;
+  /** The payment plan is chosen, so nothing is left to do here. */
+  planChosen: boolean;
+  /** Tour too soon for a plan: full payment, so there is nothing to choose. */
+  isLastMinute: boolean;
 };
 
 export default function Step3ReservationConfirmedBanner({
   bookingId,
+  planChosen,
+  isLastMinute,
 }: Step3ReservationConfirmedBannerProps) {
   return (
     <div className="bg-gradient-to-r from-spring-green/10 to-green-500/10 border-2 border-spring-green/40 p-5 rounded-xl shadow-lg">
@@ -21,8 +27,15 @@ export default function Step3ReservationConfirmedBanner({
         </div>
         <div>
           <div className="font-bold text-lg text-foreground">
-            🎉 Reservation confirmed!
+            {planChosen ? "🎉 Reservation confirmed!" : "Payment received. One step left"}
           </div>
+          {!planChosen && (
+            <div className="text-sm text-muted-foreground mt-1">
+              {isLastMinute
+                ? "Review the full payment below, then complete your reservation."
+                : "Choose your payment plan below to finish your reservation."}
+            </div>
+          )}
           <div className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
             <span>Reservation ID:</span>
             <span className="font-mono font-semibold text-foreground bg-background/50 px-2 py-0.5 rounded">

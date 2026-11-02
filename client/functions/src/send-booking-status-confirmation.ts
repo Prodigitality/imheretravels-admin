@@ -1,5 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { FieldValue, getFirestore, Timestamp } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import * as QRCode from "qrcode";
 import GmailApiService from "./gmail-api-service";
@@ -11,7 +11,7 @@ const db = getFirestore();
 /**
  * Format date like Google Sheets: "Dec 2, 2025"
  */
-function formatDateLikeSheets(dateValue: any): string {
+export function formatDateLikeSheets(dateValue: any): string {
   if (!dateValue) return "";
 
   try {
@@ -75,7 +75,7 @@ function formatDateLikeSheets(dateValue: any): string {
 /**
  * Get BCC list from bcc-users collection
  */
-async function getBCCList(): Promise<string[]> {
+export async function getBCCList(): Promise<string[]> {
   try {
     const bccUsersSnap = await db.collection("bcc-users").get();
     const bccList = bccUsersSnap.docs
@@ -128,8 +128,20 @@ function memberTotalCost(booking: any): number {
   return toNumber(booking.discountedTourCost || booking.originalTourCost || 0);
 }
 
+/** What one traveller saves on a sale booking; 0 for any other booking. */
+function memberSaleSavings(booking: any): number {
+  if (!booking.saleName) return 0;
+  return (
+    toNumber(booking.saleDiscountGBP) ||
+    Math.max(
+      0,
+      toNumber(booking.originalTourCost) - toNumber(booking.discountedTourCost),
+    )
+  );
+}
+
 /** Two calendar months before the tour date, formatted like the rest of the email. */
-function computeFinalPaymentDeadline(rawTourDate: any): string {
+export function computeFinalPaymentDeadline(rawTourDate: any): string {
   if (!rawTourDate) return "";
   let d: Date | null = null;
   if (typeof rawTourDate === "object" && (rawTourDate as any)._seconds)
@@ -250,7 +262,7 @@ export async function sendForBooking(opts: {
       email: member.emailAddress || "",
       isMainBooker: member.isMainBooker === true,
       isYou: memberDoc.id === bookingDocumentId,
-      paymentPlan: member.paymentPlan || member.availablePaymentTerms || "",
+      paymentPlan: member.paymentPlan || "",
       totalCost: memberCost.toFixed(2),
       paid: memberPaid.toFixed(2),
       remainingBalance: (memberCost - memberPaid).toFixed(2),
@@ -265,6 +277,12 @@ export async function sendForBooking(opts: {
     (sum, d) => sum + toNumber(d.data().paid),
     0,
   );
+
+  // The main booker sees what the party saves; everyone else their own saving.
+  const saleSavings =
+    isGroupBooking && isMainBooker && partyDocs.length
+      ? partyDocs.reduce((sum, d) => sum + memberSaleSavings(d.data()), 0)
+      : memberSaleSavings(bookingData);
 
   let tourPackageCoverImage = "";
   try {
@@ -290,6 +308,9 @@ export async function sendForBooking(opts: {
     tourDuration: bookingData.tourDuration || "",
     bookingType: bookingData.bookingType || "",
     paymentPlan: bookingData.paymentPlan || "",
+    needsPaymentPlan: !bookingData.paymentPlan,
+    saleName: bookingData.saleName || "",
+    saleSavings: saleSavings > 0 ? saleSavings.toFixed(2) : "",
     totalCost: totalCost.toFixed(2),
     paid: paid.toFixed(2),
     remainingBalance: remainingBalance.toFixed(2),
@@ -359,10 +380,126 @@ export async function sendForBooking(opts: {
   };
 }
 
+const CLAIM_TTL_MS = 5 * 60 * 1000;
+
 /**
- * Callable function to send booking status confirmation email with QR code
- * This should be called after step 3 (payment selection) in /reservation-booking-form
- * or after step 2 in /guest-reservation
+ * Claims one traveller's confirmation, so the payment trigger and Step 3 can't
+ * both send it. A claim left behind by a run that died expires.
+ */
+async function claimConfirmation(bookingDocumentId: string): Promise<boolean> {
+  const ref = db.collection("bookings").doc(bookingDocumentId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (snap.get("bookingStatusEmailSent") === true) return false;
+    const claimedAt: Timestamp | undefined = snap.get(
+      "bookingStatusEmailClaimedAt",
+    );
+    if (claimedAt && Date.now() - claimedAt.toMillis() < CLAIM_TTL_MS) {
+      return false;
+    }
+    tx.update(ref, { bookingStatusEmailClaimedAt: Timestamp.now() });
+    return true;
+  });
+}
+
+/**
+ * Sends the Reservation Confirmed email for a booking, to the whole party when
+ * it is the main booker's. Anyone who already has it is skipped.
+ */
+export async function sendReservationConfirmed(
+  bookingDoc: FirebaseFirestore.DocumentSnapshot,
+): Promise<{ sent: any[]; failed: any[] }> {
+  const bookingData = bookingDoc.data();
+  if (!bookingData) {
+    throw new HttpsError("not-found", "Booking data is empty");
+  }
+
+  // Get email template from Firestore
+  logger.info("Loading email template from Firestore...");
+  const templateDoc = await db
+    .collection("emailTemplates")
+    .doc("C8PKdv5BgAlTSFCm6wS3")
+    .get();
+
+  if (!templateDoc.exists) {
+    throw new HttpsError(
+      "not-found",
+      "Email template 'Reservation Confirmed' not found",
+    );
+  }
+
+  const templateData = templateDoc.data();
+  if (!templateData) {
+    throw new HttpsError("not-found", "Email template data is empty");
+  }
+
+  const emailTemplate = templateData.content;
+  logger.info("Email template loaded successfully");
+
+  const isGroupBooking = isGroupBookingType(bookingData.bookingType);
+  const groupId = bookingData.groupId || "";
+  const partyDocs =
+    isGroupBooking && groupId ? await getPartyMembers(groupId) : [];
+
+  // Fan out only from the main booker, so a guest confirming their own
+  // self-paid booking does not re-mail the whole party.
+  const recipients: FirebaseFirestore.DocumentSnapshot[] =
+    isGroupBooking && bookingData.isMainBooker === true && partyDocs.length
+      ? partyDocs
+      : [bookingDoc];
+
+  logger.info(
+    `👥 Sending to ${recipients.length} traveller(s) for group "${groupId || "n/a"}"`,
+  );
+
+  const gmailService = new GmailApiService();
+  const bccList = await getBCCList();
+
+  const sent: any[] = [];
+  const failed: any[] = [];
+
+  for (const memberDoc of recipients) {
+    const memberData = memberDoc.data() as any;
+    if (!(await claimConfirmation(memberDoc.id))) {
+      logger.info(`⏭️ ${memberDoc.id} already has its confirmation`);
+      continue;
+    }
+    try {
+      sent.push(
+        await sendForBooking({
+          bookingDocumentId: memberDoc.id,
+          bookingData: memberData,
+          emailTemplate,
+          partyDocs,
+          gmailService,
+          bccList,
+        }),
+      );
+    } catch (memberError: any) {
+      // One traveller failing must not deprive the rest of their email.
+      logger.error(
+        `❌ Failed to send reservation confirmation for ${memberDoc.id}:`,
+        memberError,
+      );
+      await memberDoc.ref
+        .update({ bookingStatusEmailClaimedAt: FieldValue.delete() })
+        .catch(() => {});
+      failed.push({
+        bookingDocumentId: memberDoc.id,
+        email: memberData?.emailAddress || "",
+        error: memberError?.message || String(memberError),
+      });
+    }
+  }
+
+  return { sent, failed };
+}
+
+/**
+ * Callable function to send booking status confirmation email with QR code.
+ * onReservationPaid sends it straight after the reservation fee is paid; Step 3
+ * of /reservation-booking-form calls this as a backstop, and /guest-reservation
+ * calls it after step 2. A traveller who already has the email is skipped.
  *
  * For a Duo/Group booking called with the MAIN BOOKER's booking, this fans out
  * to every guest in the party as well — each with their own QR code, payment
@@ -427,78 +564,9 @@ export const sendBookingStatusConfirmation = onCall(
         );
       }
 
-      // Get email template from Firestore
-      logger.info("Loading email template from Firestore...");
-      const templateDoc = await db
-        .collection("emailTemplates")
-        .doc("C8PKdv5BgAlTSFCm6wS3")
-        .get();
+      const { sent, failed } = await sendReservationConfirmed(bookingDoc);
 
-      if (!templateDoc.exists) {
-        throw new HttpsError(
-          "not-found",
-          "Email template 'Reservation Confirmed' not found",
-        );
-      }
-
-      const templateData = templateDoc.data();
-      if (!templateData) {
-        throw new HttpsError("not-found", "Email template data is empty");
-      }
-
-      const emailTemplate = templateData.content;
-      logger.info("Email template loaded successfully");
-
-      const isGroupBooking = isGroupBookingType(bookingData.bookingType);
-      const groupId = bookingData.groupId || "";
-      const partyDocs =
-        isGroupBooking && groupId ? await getPartyMembers(groupId) : [];
-
-      // Fan out only from the main booker, so a guest confirming their own
-      // self-paid booking does not re-mail the whole party.
-      const recipients: FirebaseFirestore.DocumentSnapshot[] =
-        isGroupBooking && bookingData.isMainBooker === true && partyDocs.length
-          ? partyDocs
-          : [bookingDoc];
-
-      logger.info(
-        `👥 Sending to ${recipients.length} traveller(s) for group "${groupId || "n/a"}"`,
-      );
-
-      const gmailService = new GmailApiService();
-      const bccList = await getBCCList();
-
-      const sent: any[] = [];
-      const failed: any[] = [];
-
-      for (const memberDoc of recipients) {
-        const memberData = memberDoc.data() as any;
-        try {
-          sent.push(
-            await sendForBooking({
-              bookingDocumentId: memberDoc.id,
-              bookingData: memberData,
-              emailTemplate,
-              partyDocs,
-              gmailService,
-              bccList,
-            }),
-          );
-        } catch (memberError: any) {
-          // One traveller failing must not deprive the rest of their email.
-          logger.error(
-            `❌ Failed to send reservation confirmation for ${memberDoc.id}:`,
-            memberError,
-          );
-          failed.push({
-            bookingDocumentId: memberDoc.id,
-            email: memberData?.emailAddress || "",
-            error: memberError?.message || String(memberError),
-          });
-        }
-      }
-
-      if (sent.length === 0) {
+      if (sent.length === 0 && failed.length > 0) {
         throw new HttpsError(
           "internal",
           failed[0]?.error || "Failed to send booking status confirmation",
@@ -512,9 +580,9 @@ export const sendBookingStatusConfirmation = onCall(
 
       return {
         success: true,
-        messageId: primary.messageId,
-        sentEmailLink: primary.sentEmailLink,
-        bookingStatusUrl: primary.bookingStatusUrl,
+        messageId: primary?.messageId ?? null,
+        sentEmailLink: primary?.sentEmailLink ?? null,
+        bookingStatusUrl: primary?.bookingStatusUrl ?? null,
         recipients: sent,
         failed,
       };

@@ -119,4 +119,39 @@ describe("runExistingPaymentsFlowAction", () => {
     expect(setFoundStripePayments).toHaveBeenCalled();
     expect(setShowEmailModal).toHaveBeenCalledWith(true);
   });
+
+  it("skips older reservations and starts a new payment for a sale hold", async () => {
+    const setShowEmailModal = vi.fn();
+    const setStep = vi.fn();
+    const fetchPayments = vi.fn(async () => []);
+    const createPlaceholder = vi.fn(async () => "new-doc");
+
+    await runExistingPaymentsFlowAction({
+      validate: () => true,
+      isCreatingPayment: false,
+      paymentDocId: null,
+      updateExistingPaymentDoc: async () => true,
+      createPlaceholder,
+      completedSteps: [],
+      setCompletedSteps: vi.fn(),
+      setStep,
+      setIsCreatingPayment: vi.fn(),
+      setModalLoading: vi.fn(),
+      setFoundStripePayments: vi.fn(),
+      setShowEmailModal,
+      replaceWithPaymentId: vi.fn(),
+      skipLookup: true,
+      checkInput: {
+        fetchPayments,
+        fetchBookingHasPaymentPlan: async () => false,
+        selectedPackageName: "Tour A",
+        tourDate: "2026-12-10",
+      },
+    });
+
+    expect(fetchPayments).not.toHaveBeenCalled();
+    expect(setShowEmailModal).not.toHaveBeenCalled();
+    expect(createPlaceholder).toHaveBeenCalled();
+    expect(setStep).toHaveBeenCalledWith(2);
+  });
 });

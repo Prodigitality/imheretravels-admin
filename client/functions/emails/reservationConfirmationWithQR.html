@@ -126,8 +126,25 @@
                                                 </tr>
                                             </table>
                                         </div>
+                                    <!-- Sale -->
+                                        {% if saleName %}
+                                            <div style="
+                                            background-color: #fdeced;
+                                            padding: 15px 20px;
+                                            border-radius: 12px;
+                                            margin: 25px 0;
+                                            border-left: 5px solid #ef3340;
+                                            ">
+                                            <h4 style="color: #c0392b; margin: 0 0 8px 0; font-size: 14px; font-weight: bold;">{{ saleName }}</h4>
+                                            <p style="font-size: 13px; color: #333333; margin: 0;">
+                                                You booked at the sale price.{% if saleSavings %}
+                                                {% if isGroupBooking and isMainBooker %}Your party saves{% else %}You save{% endif %}
+                                                <strong>£{{ saleSavings }}</strong> on the regular price.{% endif %}
+                                                </p>
+                                            </div>
+                                        {% endif %}
                                     <!-- Payment Summary -->
-                                        {% if paymentPlan %}
+                                        {% if paymentPlan or needsPaymentPlan %}
                                         <div style="
                                         background-color: #f5f5f5;
                                         padding: 20px;
@@ -145,7 +162,7 @@
                                             {% endif %}
                                             <tr style="border-bottom: 1px solid #e0e0e0;">
                                                 <td style="padding: 10px 0; color: #666666; font-weight: 500;">{% if isGroupBooking %}Your Payment Plan{% else %}Payment Plan{% endif %}</td>
-                                                <td style="padding: 10px 0; color: #333333; text-align: right;">{{ paymentPlan }}</td>
+                                                <td style="padding: 10px 0; color: #333333; text-align: right;">{{ paymentPlan or "Not chosen yet" }}</td>
                                                 </tr>
                                             <tr style="border-bottom: 1px solid #e0e0e0;">
                                                 <td style="padding: 10px 0; color: #666666; font-weight: 500;">{% if isGroupBooking %}Your Tour Cost{% else %}Total Cost{% endif %}</td>
@@ -276,6 +293,23 @@
                                                 changes to reflect. For urgent inquiries, contact our support team directly.
                                                 </p>
                                             </div>
+                                        <!-- Choose Payment Plan -->
+                                        {% if needsPaymentPlan %}
+                                            <div style="
+                                            background-color: #fff8e6;
+                                            padding: 15px 20px;
+                                            border-radius: 12px;
+                                            margin: 25px 0;
+                                            border-left: 5px solid #f59e0b;
+                                            ">
+                                            <h4 style="color: #b45309; margin: 0 0 8px 0; font-size: 14px; font-weight: bold;">Next step: choose your payment plan</h4>
+                                            <p style="font-size: 13px; color: #333333; margin: 0 0 10px 0;">
+                                                Your reservation fee is paid. If you haven't chosen your payment plan yet, you can do it
+                                                any time from your booking status page. Your payment schedule starts once you've chosen.
+                                                </p>
+                                            <a href="{{ bookingStatusUrl }}" style="color: #c0392b; font-size: 13px; font-weight: bold;">Choose your payment plan</a>
+                                            </div>
+                                        {% endif %}
                                         <!-- Payment Policy Notice -->
                                             <div style="
                                             background-color: #fdf2f2;

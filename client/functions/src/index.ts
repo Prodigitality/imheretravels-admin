@@ -22,6 +22,7 @@ export { sendBookingConfirmationEmail } from "./send-booking-confirmation-email"
 export { sendBookingStatusConfirmation } from "./send-booking-status-confirmation"; // Callable function to send booking status confirmation with QR code
 export { sendGuestInvitationEmails } from "./send-guest-invitations"; // Callable function to send guest invitation emails
 export { onGuestInvitationTrigger } from "./on-guest-invitation-trigger"; // Trigger: auto-create + send guest invitation when paymentProgress reaches 50%
+export { onReservationPaid } from "./on-reservation-paid"; // Trigger: Reservation Confirmed email right after the fee is paid
 export { onStripePaymentSuccess } from "./on-stripe-payment-success"; // Trigger for Stripe payment success notifications
 // export { getDraftSubject } from "./get-draft-subject";
 // export { getEmailDetails } from "./get-email-details";
@@ -33,6 +34,8 @@ export { processScheduledEmails } from "./scheduled-emails";
 export { onPaymentReminderEnabled } from "./payment-reminder-trigger";
 // Follow-up emails for abandoned bookings + marketing contact capture (runs every 10 min)
 export { sendAbandonedBookingFollowUps } from "./scheduled-abandoned-booking-followups";
+// Reminds paid customers who haven't chosen a payment plan (runs hourly)
+export { sendPaymentPlanReminders } from "./scheduled-plan-reminders";
 // Export price history tracking function
 export { onTourPackagePriceUpdate } from "./on-tour-package-price-update";
 export { applyLateFeesDaily } from "./scheduled-late-fees";

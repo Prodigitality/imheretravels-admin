@@ -153,9 +153,10 @@ export const useReservationPaymentPlanning = ({
     paymentTerms,
   ]);
 
+  // Only the main booker chooses here; guests use their booking status link.
   const allPlansSelected = useMemo(
-    () => areAllPaymentPlansSelected(paymentPlans, numberOfPeople),
-    [paymentPlans, numberOfPeople],
+    () => areAllPaymentPlansSelected(paymentPlans.slice(0, 1), 1),
+    [paymentPlans],
   );
 
   const handleSelectPaymentPlanForActiveTraveler = useCallback(

@@ -1,9 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import Step3PaymentPlanTabs from "./Step3PaymentPlanTabs";
-import {
-  getSelectedPaymentPlansCount,
-  PersonPaymentPlan,
-} from "../utils/step3PaymentPlan";
+import { PersonPaymentPlan } from "../utils/step3PaymentPlan";
 
 type AvailablePaymentTerm = {
   term: string;
@@ -31,8 +27,6 @@ type AvailablePaymentPlan = {
 };
 
 type Step3PaymentPlanSelectorCardProps = {
-  activePaymentTab: number;
-  onActivePaymentTabChange: (tabIndex: number) => void;
   paymentPlans: PersonPaymentPlan[];
   guestDetails: GuestSummary[];
   selectedTourPrice: number;
@@ -46,8 +40,6 @@ type Step3PaymentPlanSelectorCardProps = {
 };
 
 export default function Step3PaymentPlanSelectorCard({
-  activePaymentTab,
-  onActivePaymentTabChange,
   paymentPlans,
   guestDetails,
   selectedTourPrice,
@@ -61,9 +53,10 @@ export default function Step3PaymentPlanSelectorCard({
 }: Step3PaymentPlanSelectorCardProps) {
   const reservationFeePerPerson = depositAmount / numberOfPeople;
   const remainingBalance = selectedTourPrice - reservationFeePerPerson;
-  const selectedPlansCount = availablePaymentTerm.isLastMinute
-    ? numberOfPeople
-    : getSelectedPaymentPlansCount(paymentPlans);
+  const guestNames = guestDetails
+    .map((guest) => guest.firstName)
+    .filter(Boolean)
+    .join(", ");
 
   const finalPaymentDeadlineLabel = (() => {
     if (!tourDate) return null;
@@ -84,27 +77,16 @@ export default function Step3PaymentPlanSelectorCard({
     <div className="rounded-xl bg-card border border-sunglow-yellow/20 dark:border-crimson-red/30 shadow-md dark:shadow-lg overflow-hidden transition-all duration-300 hover:border-crimson-red">
       <div className="p-4 sm:p-5">
         <div className="space-y-4">
-          {numberOfPeople > 1 && (
-            <Step3PaymentPlanTabs
-              activePaymentTab={activePaymentTab}
-              onActivePaymentTabChange={onActivePaymentTabChange}
-              paymentPlans={paymentPlans}
-              guestDetails={guestDetails}
-            />
-          )}
-
           <AnimatePresence mode="wait">
             <motion.div
-              key={activePaymentTab}
+              key="payment-plan"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
             >
               <h4 className="text-sm font-semibold text-foreground mb-2">
-                {activePaymentTab === 0
-                  ? "Select your payment plan"
-                  : `Select payment plan for ${guestDetails[activePaymentTab - 1]?.firstName}`}
+                Select your payment plan
               </h4>
 
               <div className="bg-muted/20 border border-border rounded-lg p-3 mb-3">
@@ -215,8 +197,7 @@ export default function Step3PaymentPlanSelectorCard({
 
                   <div className="space-y-2">
                     {availablePaymentPlans.map((plan) => {
-                      const personPlan = paymentPlans[activePaymentTab];
-                      const isSelected = personPlan?.plan === plan.id;
+                      const isSelected = paymentPlans[0]?.plan === plan.id;
 
                       return (
                         <button
@@ -316,41 +297,12 @@ export default function Step3PaymentPlanSelectorCard({
                 </>
               )}
 
-              <div className="flex justify-between mt-4">
-                {activePaymentTab > 0 && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onActivePaymentTabChange(activePaymentTab - 1)
-                    }
-                    className="px-3 py-1.5 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    ← Previous
-                  </button>
-                )}
-                {activePaymentTab < numberOfPeople - 1 ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onActivePaymentTabChange(activePaymentTab + 1)
-                    }
-                    disabled={
-                      !selectionLocked && !paymentPlans[activePaymentTab]?.plan
-                    }
-                    className={`ml-auto px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                      selectionLocked || paymentPlans[activePaymentTab]?.plan
-                        ? "bg-primary text-primary-foreground hover:shadow-lg"
-                        : "bg-muted text-muted-foreground cursor-not-allowed opacity-50"
-                    }`}
-                  >
-                    Next →
-                  </button>
-                ) : (
-                  <div className="ml-auto text-xs sm:text-sm text-muted-foreground">
-                    {selectedPlansCount} of {numberOfPeople} plans selected
-                  </div>
-                )}
-              </div>
+              {numberOfPeople > 1 && !availablePaymentTerm.isLastMinute && (
+                <p className="mt-4 text-xs sm:text-sm text-muted-foreground">
+                  {guestNames || "Your guests"} will choose their own payment
+                  plan from the booking status link in their confirmation email.
+                </p>
+              )}
             </motion.div>
           </AnimatePresence>
         </div>

@@ -60,6 +60,7 @@ export default function ReservationTourSelectionSidebarCard({
 }: ReservationTourSelectionSidebarCardProps) {
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const lockedByStep = step !== 1;
   const isSelectionLocked = paymentConfirmed || lockedByStep;
   const isTourChangeLocked = isSelectionLocked || tourLocked;
@@ -97,11 +98,58 @@ export default function ReservationTourSelectionSidebarCard({
     !isSelectionLocked &&
     !!tourPackage &&
     tourDateOptions.length > 0;
+  // Once paid, the customer has their tour: on phones it shrinks to a summary
+  // row so the payment plan is what they see.
+  const compactOnMobile = paymentConfirmed && !!selectedPackage;
 
   return (
     <div className="w-full min-w-0 rounded-2xl mt-2 overflow-visible border border-border bg-card text-foreground shadow-lg transition-all duration-300">
       <div className="space-y-3">
         <div>
+          {compactOnMobile && (
+            <button
+              type="button"
+              aria-expanded={detailsOpen}
+              onClick={() => setDetailsOpen((open) => !open)}
+              className="flex w-full min-h-11 items-center gap-3 rounded-xl p-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 lg:hidden"
+            >
+              {selectedPackage?.coverImage && (
+                <img
+                  src={selectedPackage.coverImage}
+                  alt=""
+                  className="h-12 w-12 flex-shrink-0 rounded-lg object-cover"
+                />
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold">
+                  {selectedPackage?.name}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {selectedDateOption?.label || displayDate(tourDate)} ·{" "}
+                  {saleTotal != null
+                    ? `${toPounds(saleTotal)} sale price`
+                    : `${toPounds(selectedTourCost)} per person`}
+                </span>
+              </span>
+              <span className="flex flex-shrink-0 items-center gap-1 text-xs font-semibold text-muted-foreground">
+                {detailsOpen ? "Hide" : "Details"}
+                <svg
+                  className={`h-4 w-4 transition-transform ${detailsOpen ? "rotate-180" : ""}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </span>
+            </button>
+          )}
 
           {isLoadingPackages ? (
             <div className="mt-1 rounded-xl border border-border bg-card overflow-hidden">
@@ -134,7 +182,11 @@ export default function ReservationTourSelectionSidebarCard({
               </div>
             </div>
           ) : selectedPackage ? (
-            <div className="w-full min-w-0 text-foreground rounded-xl border border-border bg-card overflow-hidden">
+            <div
+              className={`w-full min-w-0 text-foreground rounded-xl border border-border bg-card overflow-hidden ${
+                compactOnMobile && !detailsOpen ? "hidden lg:block" : ""
+              }`}
+            >
               <div
                 className={`relative overflow-hidden ${
                   isTourChangeLocked ? "cursor-not-allowed" : "cursor-pointer"

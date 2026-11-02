@@ -141,4 +141,53 @@ describe("runConfirmBookingAction", () => {
 
     fetchSpy.mockRestore();
   });
+  const confirmParty = async (isLastMinute: boolean) => {
+    getDocMock.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({ bookingDocumentIds: ["main", "guest"] }),
+    } as any);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue({ ok: true, json: async () => ({ ok: true }) } as any);
+    fetchSpy.mockClear();
+
+    await runConfirmBookingAction({
+      db: {} as any,
+      paymentConfirmed: true,
+      isLastMinute,
+      allPlansSelected: true,
+      numberOfPeople: 2,
+      paymentPlans: [
+        { plan: "p2", tourCostShare: 1000, reservationFeeShare: 250 },
+        { plan: "", tourCostShare: 1000, reservationFeeShare: 250 },
+      ],
+      availablePaymentPlans: [{ id: "p2", type: "p2", label: "P2" }],
+      bookingId: "",
+      paymentDocId: "doc-1",
+      email: "a@x.com",
+      tourPackage: "tour-1",
+      setConfirmingBooking: vi.fn(),
+      setFetchedPaymentPlanLabel: vi.fn(),
+      setBookingConfirmed: vi.fn(),
+      onAlert: vi.fn(),
+      onError: vi.fn(),
+    });
+
+    return fetchSpy.mock.calls
+      .filter(([url]) => url === "/api/stripe-payments/select-plan")
+      .map(([, init]) => JSON.parse(String((init as RequestInit).body)));
+  };
+
+  it("sets a plan for the main booker only, leaving guests to choose theirs", async () => {
+    const plans = await confirmParty(false);
+    expect(plans.map((p) => [p.bookingDocumentId, p.paymentPlanId])).toEqual([["main", "p2"]]);
+  });
+
+  it("puts everyone on full payment for a last-minute booking", async () => {
+    const plans = await confirmParty(true);
+    expect(plans.map((p) => [p.bookingDocumentId, p.paymentPlanId])).toEqual([
+      ["main", "full_payment"],
+      ["guest", "full_payment"],
+    ]);
+  });
 });

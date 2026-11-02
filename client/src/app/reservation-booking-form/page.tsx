@@ -10,6 +10,7 @@ import {
   serverTimestamp,
   setDoc,
   doc,
+  getDoc,
   collection,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
@@ -27,6 +28,7 @@ import Step1PersonalReservationSection from "./components/Step1PersonalReservati
 import ReservationTourSelectionSidebarCard from "./components/ReservationTourSelectionSidebarCard";
 import SaleHoldBanner from "./components/SaleHoldBanner";
 import { useSaleHold } from "./hooks/effects/useSaleHold";
+import { useStep3Countdown } from "./hooks/effects/useStep3Countdown";
 import {
   calculateDaysBetween,
   MIN_DAYS_BEFORE_TOUR,
@@ -123,7 +125,6 @@ const Page = () => {
     paymentPlans,
     setPaymentPlans,
     activePaymentTab,
-    setActivePaymentTab,
   } = useReservationCatalogState();
 
   const {
@@ -404,6 +405,12 @@ const Page = () => {
     setTourDate,
   });
 
+  const secondsToPaymentPlan = useStep3Countdown({
+    step,
+    paymentConfirmed,
+    onDone: () => setStep(3),
+  });
+
   const sale = useSaleHold();
   const saleHold = sale.hold;
   const saleLocksSelection =
@@ -424,7 +431,7 @@ const Page = () => {
         ? selectedDateDetail.customOriginal
         : (selectedPackage as { price?: number }).price ?? null
       : null;
-  const saleTravellerPrices =
+  const heldTravellerPrices =
     saleHold && (sale.phase === "active" || sale.phase === "secured")
       ? [...saleHold.slots]
           .sort((a, b) => a.index - b.index)
@@ -434,6 +441,29 @@ const Page = () => {
             return Math.max(0, Math.round((saleDatePrice - discount) * 100) / 100);
           })
       : null;
+
+  // A refresh after payment loses the hold in this tab, so the prices paid come
+  // from the payment itself.
+  const [paidSalePrices, setPaidSalePrices] = useState<number[] | null>(null);
+  const hasHeldPrices = !!heldTravellerPrices;
+  useEffect(() => {
+    if (!paymentConfirmed || !paymentDocId || hasHeldPrices) return;
+    let cancelled = false;
+    getDoc(doc(db, "stripePayments", paymentDocId))
+      .then((snap) => {
+        const slots: { index: number; salePrice: number }[] | undefined =
+          snap.data()?.sale?.slots;
+        if (cancelled || !slots?.length) return;
+        setPaidSalePrices(
+          [...slots].sort((a, b) => a.index - b.index).map((s) => s.salePrice),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [paymentConfirmed, paymentDocId, hasHeldPrices]);
+  const saleTravellerPrices = heldTravellerPrices ?? paidSalePrices;
 
   const {
     availablePaymentTerm,
@@ -728,6 +758,7 @@ const Page = () => {
   const { checkExistingPaymentsAndMaybeProceed } = useExistingPaymentCheck({
     db,
     email,
+    skipLookup: sale.isSaleHold,
     selectedPackageName: selectedPackage?.name || "",
     tourDate,
     replaceWithPaymentId,
@@ -970,7 +1001,7 @@ const Page = () => {
                   setTourDate={setTourDate}
                   tourLocked={saleLocksSelection}
                   saleTotal={
-                    saleLocksSelection && saleTravellerPrices
+                    saleTravellerPrices
                       ? saleTravellerPrices.reduce((sum, p) => sum + p, 0)
                       : null
                   }
@@ -1017,6 +1048,7 @@ const Page = () => {
                           tourPackage={tourPackage}
                           paymentConfirmed={paymentConfirmed}
                           step2Processing={step2Processing}
+                          secondsToPaymentPlan={secondsToPaymentPlan}
                         >
                           <Step2ReservationSummaryCard
                             bookingType={bookingType}
@@ -1060,7 +1092,11 @@ const Page = () => {
                     {(step as number) === 3 && (
                       <div className="space-y-6">
                         {paymentConfirmed ? (
-                          <Step3ReservationConfirmedBanner bookingId={bookingId} />
+                          <Step3ReservationConfirmedBanner
+                            bookingId={bookingId}
+                            planChosen={bookingConfirmed}
+                            isLastMinute={availablePaymentTerm.isLastMinute}
+                          />
                         ) : (
                           <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl">
                             <div className="flex items-start gap-3">
@@ -1095,8 +1131,6 @@ const Page = () => {
                         )}
 
                         <Step3PaymentPlanSelectorCard
-                          activePaymentTab={activePaymentTab}
-                          onActivePaymentTabChange={setActivePaymentTab}
                           paymentPlans={paymentPlans}
                           guestDetails={guestDetails}
                           selectedTourPrice={selectedTourPrice}

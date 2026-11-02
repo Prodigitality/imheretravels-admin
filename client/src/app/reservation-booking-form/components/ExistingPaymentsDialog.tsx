@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { formatDateDisplay } from "@/lib/booking-calculations";
 
 type StripePaymentRecord = {
   id?: string;
@@ -125,8 +126,12 @@ export default function ExistingPaymentsDialog({
                   record?.tour?.packageName ||
                   record?.tourPackageName ||
                   "Unknown Tour";
+                // Instalment payments store the date as a Firestore Timestamp.
+                const rawTourDate: unknown = record?.tour?.date || record?.tourDate;
                 const tourDate =
-                  record?.tour?.date || record?.tourDate || "No date set";
+                  typeof rawTourDate === "string"
+                    ? rawTourDate
+                    : formatDateDisplay(rawTourDate) || "No date set";
                 const amount =
                   record?.payment?.amount || record?.amountGBP || 0;
                 const paymentType = record?.payment?.type || "reservationFee";

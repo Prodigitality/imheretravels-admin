@@ -281,6 +281,18 @@ import {
   rollbackMigration as rollbackMigration081,
 } from "./081-cancellation-late-fees-line";
 import {
+  runMigration as runMigration082,
+  rollbackMigration as rollbackMigration082,
+} from "./082-reservation-confirmed-plan-prompt";
+import {
+  runMigration as runMigration083,
+  rollbackMigration as rollbackMigration083,
+} from "./083-reservation-confirmed-sale-summary";
+import {
+  runMigration as runMigration084,
+  rollbackMigration as rollbackMigration084,
+} from "./084-payment-plan-reminder-template";
+import {
   runMigration as runMigration078,
   rollbackMigration as rollbackMigration078,
 } from "./078-late-fee-notice-grace-days";
@@ -2397,6 +2409,39 @@ async function main() {
       console.log(`\n🎯 ${rb081.message}`);
       break;
     }
+    case "082":
+    case "dry-run082": {
+      const r082 = await runMigration082(command === "dry-run082" || dryRun);
+      console.log(`\n🎯 ${r082.message}\n📊 Details: ${r082.details.updated} updated, ${r082.details.errors} errors`);
+      break;
+    }
+    case "rollback082": {
+      const rb082 = await rollbackMigration082();
+      console.log(`\n🎯 ${rb082.message}`);
+      break;
+    }
+    case "083":
+    case "dry-run083": {
+      const r083 = await runMigration083(command === "dry-run083" || dryRun);
+      console.log(`\n🎯 ${r083.message}\n📊 Details: ${r083.details.updated} updated, ${r083.details.errors} errors`);
+      break;
+    }
+    case "rollback083": {
+      const rb083 = await rollbackMigration083();
+      console.log(`\n🎯 ${rb083.message}`);
+      break;
+    }
+    case "084":
+    case "dry-run084": {
+      const r084 = await runMigration084(command === "dry-run084" || dryRun);
+      console.log(`\n🎯 ${r084.message}\n📊 Details: ${r084.details.updated} updated, ${r084.details.errors} errors`);
+      break;
+    }
+    case "rollback084": {
+      const rb084 = await rollbackMigration084();
+      console.log(`\n🎯 ${rb084.message}`);
+      break;
+    }
     case "rollback080": {
       const rb080 = await rollbackMigration080();
       console.log(`\n🎯 ${rb080.message}`);
@@ -2524,6 +2569,9 @@ function showHelp() {
   079                T&C sweep fixes: Pre-Departure Pack tour name + typo, reminder Stripe CTAs, transfer wording
   080                Cancellation Email: wording for cancellations on/after tour start (needs functions deploy)
   081                Cancellation Email: paid late fees shown as non-refundable line (needs functions deploy)
+  082                Reservation Confirmed: prompt to choose a payment plan (needs functions deploy)
+  083                Reservation Confirmed: name the sale, always show the Payment Summary (needs functions deploy)
+  084                Add the Payment Plan Reminder email template
   rollback, undo     Rollback the migration 001 (delete created tours)
   rollback002        Rollback the migration 002 (delete created tours)
   rollback003        Rollback the migration 003 (delete created tours)
