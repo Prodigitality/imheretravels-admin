@@ -15,6 +15,8 @@ type UseExistingPaymentCheckOptions = {
   email: string;
   selectedPackageName: string;
   tourDate: string;
+  /** Go straight to a new payment: a sale hold can't use an older reservation. */
+  skipLookup?: boolean;
   replaceWithPaymentId: (paymentDocId: string | null) => void;
   serverTimestampValue: unknown;
   formSlice: {
@@ -42,6 +44,7 @@ export const useExistingPaymentCheck = ({
   email,
   selectedPackageName,
   tourDate,
+  skipLookup = false,
   replaceWithPaymentId,
   serverTimestampValue,
   formSlice,
@@ -91,6 +94,7 @@ export const useExistingPaymentCheck = ({
       setFoundStripePayments,
       setShowEmailModal,
       replaceWithPaymentId,
+      skipLookup,
       checkInput: {
         fetchPayments: async () => {
           const paymentsRef = collection(db, "stripePayments");
@@ -129,6 +133,7 @@ export const useExistingPaymentCheck = ({
     validate,
     isCreatingPayment,
     paymentDocId,
+    skipLookup,
     db,
     getReservationDraftPayload,
     serverTimestampValue,

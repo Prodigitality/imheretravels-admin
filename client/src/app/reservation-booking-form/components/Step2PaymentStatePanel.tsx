@@ -4,6 +4,8 @@ type Step2PaymentStatePanelProps = {
   tourPackage: string;
   paymentConfirmed: boolean;
   step2Processing: boolean;
+  /** Seconds until the form moves on to the payment plan; null when it won't. */
+  secondsToPaymentPlan?: number | null;
   children?: ReactNode;
 };
 
@@ -11,6 +13,7 @@ export default function Step2PaymentStatePanel({
   tourPackage,
   paymentConfirmed,
   step2Processing,
+  secondsToPaymentPlan = null,
   children,
 }: Step2PaymentStatePanelProps) {
   if (!tourPackage) {
@@ -46,9 +49,14 @@ export default function Step2PaymentStatePanel({
               Payment confirmed!
             </div>
             <div className="text-sm text-muted-foreground mt-1">
-              Your reservation fee has been successfully processed. Click
-              Continue to proceed to your payment plan.
+              Your reservation fee has been successfully processed. One step
+              left: your payment plan.
             </div>
+            {secondsToPaymentPlan !== null && (
+              <div className="text-sm font-medium text-foreground mt-2">
+                Taking you there in {secondsToPaymentPlan}…
+              </div>
+            )}
           </div>
         </div>
       </div>

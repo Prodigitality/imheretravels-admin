@@ -65,6 +65,8 @@ type RunExistingPaymentsFlowInput = {
   setShowEmailModal: (value: boolean) => void;
   replaceWithPaymentId: (paymentDocId: string | null) => void;
   checkInput: CheckExistingPaymentsActionInput;
+  /** Go straight to a new payment: a sale hold can't use an older reservation. */
+  skipLookup?: boolean;
   onCheckError?: (error: unknown) => void;
   onFallbackPlaceholderError?: (error: unknown) => void;
 };
@@ -84,6 +86,7 @@ export const runExistingPaymentsFlowAction = async ({
   setShowEmailModal,
   replaceWithPaymentId,
   checkInput,
+  skipLookup = false,
   onCheckError,
   onFallbackPlaceholderError,
 }: RunExistingPaymentsFlowInput): Promise<void> => {
@@ -121,7 +124,9 @@ export const runExistingPaymentsFlowAction = async ({
   setModalLoading(true);
 
   try {
-    const lookupDecision = await checkExistingPaymentsAction(checkInput);
+    const lookupDecision = skipLookup
+      ? ({ type: "create-placeholder" } as const)
+      : await checkExistingPaymentsAction(checkInput);
 
     if (lookupDecision.type === "create-placeholder") {
       const id = await createPlaceholder();

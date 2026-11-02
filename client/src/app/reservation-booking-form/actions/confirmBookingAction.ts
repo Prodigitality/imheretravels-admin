@@ -129,9 +129,15 @@ export const runConfirmBookingAction = async ({
       );
     }
 
+    // Guests choose their own plan from their booking status link. A last-minute
+    // booking has no plan to choose: everyone is on full payment.
+    const bookingsToPlan = isLastMinute
+      ? bookingDocumentIds
+      : bookingDocumentIds.slice(0, 1);
+
     let firstSuccessfulResult: any = null;
-    for (let i = 0; i < bookingDocumentIds.length; i++) {
-      const bookingDocumentId = bookingDocumentIds[i];
+    for (let i = 0; i < bookingsToPlan.length; i++) {
+      const bookingDocumentId = bookingsToPlan[i];
       const personPlan = getTravelerPaymentPlan(paymentPlansToSend, i);
       const paymentPlanId = getPaymentPlanId(personPlan);
 
