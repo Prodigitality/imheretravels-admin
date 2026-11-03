@@ -177,19 +177,21 @@ export interface SaleOffer {
   left: number;
   /** Discount on the next free slot, in GBP. */
   discountGBP: number;
+  /** The tour's dates left out of the sale (date keys): regular price only. */
+  excludedDates: string[];
 }
 
 /**
- * The open sale this tour date is in, with a slot free right now. Null when the
- * date was left out of every sale or nothing is free.
+ * The open sale this tour is in, with a slot free right now. With a date, also
+ * null when that date was left out of the sale. Null when nothing is free.
  */
-export async function findSaleOffer(tourPackageId: string, dateKey: string): Promise<SaleOffer | null> {
+export async function findSaleOffer(tourPackageId: string, dateKey?: string): Promise<SaleOffer | null> {
   const live = await adminDb().collection(SALE_COL.events).where("status", "==", "live").get();
   for (const d of live.docs) {
     const listed = ((d.data().tours ?? []) as { tourPackageId: string; excludedDates?: string[] }[]).find(
       (t) => t.tourPackageId === tourPackageId,
     );
-    if (!listed || listed.excludedDates?.includes(dateKey)) continue;
+    if (!listed || (dateKey && listed.excludedDates?.includes(dateKey))) continue;
 
     const sale = await getSale(d.id);
     if (!sale) continue;
@@ -204,6 +206,7 @@ export async function findSaleOffer(tourPackageId: string, dateKey: string): Pro
       tourSlug: sale.tours.find((t) => t.tourPackageId === tourPackageId)?.tourSlug ?? "",
       left: tour.left,
       discountGBP: next.discountGBP,
+      excludedDates: listed.excludedDates ?? [],
     };
   }
   return null;

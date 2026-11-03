@@ -29,6 +29,7 @@ import ReservationTourSelectionSidebarCard from "./components/ReservationTourSel
 import SaleHoldBanner from "./components/SaleHoldBanner";
 import SaleOfferPrompt from "./components/SaleOfferPrompt";
 import { useSaleHold } from "./hooks/effects/useSaleHold";
+import { useSaleOffer } from "./hooks/effects/useSaleOffer";
 import { useStep3Countdown } from "./hooks/effects/useStep3Countdown";
 import {
   calculateDaysBetween,
@@ -418,6 +419,10 @@ const Page = () => {
     !!saleHold && (sale.phase === "active" || sale.phase === "secured");
   const saleExcludedDates = saleLocksSelection ? saleHold?.excludedDates : undefined;
 
+  // Regular-price customers: which dates are in an open sale (tagged in the date
+  // list; picking one sends them to the sale).
+  const saleOffer = useSaleOffer(tourPackage, tourDate, !sale.isSaleHold && !paymentConfirmed);
+
   // A hold can't be used on a date left out of the sale; the payment step refuses it too.
   useEffect(() => {
     if (tourDate && saleExcludedDates?.includes(tourDate)) setTourDate("");
@@ -556,6 +561,7 @@ const Page = () => {
     return {
       label: formattedDate,
       value: d,
+      badge: saleOffer.isOnSale(d) ? saleOffer.offer?.saleName : undefined,
       disabled: isInvalid,
       description: isInvalid
         ? `Too soon! Please choose a date at least ${MIN_DAYS_BEFORE_TOUR} days from today`
@@ -1024,9 +1030,10 @@ const Page = () => {
               >
                 <SaleHoldBanner sale={sale} prices={saleTravellerPrices} />
                 <SaleOfferPrompt
-                  tourPackageId={tourPackage}
+                  offer={saleOffer.offer}
                   tourDate={tourDate}
-                  enabled={step === 1 && !sale.isSaleHold && !paymentConfirmed}
+                  active={step === 1 && saleOffer.isOnSale(tourDate)}
+                  onChooseAnotherDate={() => setTourDate("")}
                 />
                 <AnimatePresence mode="wait" initial={false} custom={stepSwipeDirection}>
                   <motion.div

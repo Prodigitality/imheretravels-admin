@@ -2075,7 +2075,7 @@ export default function EditBookingModal({
   // Sale bookings: store the slot discount, take it off the tour price, and
   // lock the result so a later recalculation can't drop it.
   const handleApplySaleDiscount = useCallback(
-    async (saleDiscountGBP: number, discountedTourCost: number) => {
+    async (saleDiscountGBP: number, discountedTourCost: number, restored = false) => {
       if (!booking?.id) return;
 
       batchedWriter.queueFieldUpdate(booking.id, "saleDiscountGBP", saleDiscountGBP);
@@ -2102,12 +2102,32 @@ export default function EditBookingModal({
       if (finalData !== updatedFormData) setFormData(finalData);
 
       toast({
-        title: "Sale price applied",
-        description: `Discounted Tour Cost is now £${discountedTourCost}.`,
+        title: restored ? "Sale price restored" : "Sale price applied",
+        description: `Discounted Tour Cost is now £${discountedTourCost} (£${saleDiscountGBP} ${formData.saleName ?? "sale"} discount).`,
       });
     },
     [booking?.id, formData, debouncedSaveIndicator, executeDirectDependents, toast],
   );
+
+  // A sale booking whose price lost its discount (a pricing version applied
+  // before versions kept it, or a reprice) gets it back when opened, once per
+  // opening. Staff changes to the discount go through "Apply to price", which
+  // keeps the two in step, so this only ever repairs.
+  const saleRestoreCheckedRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (!isOpen) {
+      saleRestoreCheckedRef.current = null;
+      return;
+    }
+    if (isLoadingColumns || !booking?.id || formData.id !== booking.id) return;
+    if (saleRestoreCheckedRef.current === booking.id) return;
+    saleRestoreCheckedRef.current = booking.id;
+
+    if (!formData.saleName) return;
+    const target = saleDiscountedCost(formData.originalTourCost, formData.saleDiscountGBP);
+    if (target === null || Number(formData.discountedTourCost) === target) return;
+    handleApplySaleDiscount(Number(formData.saleDiscountGBP), target, true);
+  }, [isOpen, isLoadingColumns, booking?.id, formData, handleApplySaleDiscount]);
 
   // Reactive tracking: reload Tour Date options when Tour Package Name changes
   const previousTourPackageName = React.useRef<string | undefined>(undefined);

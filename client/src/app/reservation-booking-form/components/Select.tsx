@@ -8,6 +8,8 @@ export type Option = {
   value: string;
   disabled?: boolean;
   description?: string;
+  /** Short tag shown beside the label, e.g. the sale a tour date is in. */
+  badge?: string;
   searchValue?: string; // custom search text for robust matching
 };
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,63 +25,56 @@ const dateLabel = (key: string) =>
   });
 
 /**
- * Tells a customer booking at the regular price that the tour date they picked
- * is in an open sale, and offers the way in. The tour page sends dates left out
- * of the sale straight here, so changing the date in the form is the only way
- * to reach a sale date without seeing the sale; this closes that gap.
+ * A date in an open sale is booked through the sale, never here at the regular
+ * price: picking one sends the customer to the tour page's Hold sheet on that
+ * date, or back to choose another. It can't be dismissed, so it shows every
+ * time a sale date is picked.
+ *
+ * The one way past it is `price=regular` on the URL, which the Hold sheet adds
+ * to its own "Book at regular price" links (the sale can't take the party, or
+ * sold out); without it those customers would be sent straight back.
  */
 export default function SaleOfferPrompt({
-  tourPackageId,
+  offer,
   tourDate,
-  enabled,
+  active,
+  onChooseAnotherDate,
 }: {
-  tourPackageId: string;
+  offer: SaleOffer | null;
   tourDate: string;
-  /** Off during a sale hold, after payment, and past the first step. */
-  enabled: boolean;
+  /** The picked date is in the sale and the customer is still on the first step. */
+  active: boolean;
+  onChooseAnotherDate: () => void;
 }) {
-  const key = enabled && tourPackageId && /^\d{4}-\d{2}-\d{2}$/.test(tourDate) ? `${tourPackageId}|${tourDate}` : null;
-  const [offer, setOffer] = useState<{ key: string; offer: SaleOffer } | null>(null);
-  // Each tour date asks once; "Continue at regular price" means it.
-  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  const [regularChosen] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("price") === "regular";
+    } catch {
+      return false;
+    }
+  });
 
-  useEffect(() => {
-    if (!key || dismissed.has(key)) return;
-    const [tour, date] = key.split("|");
-    const ctrl = new AbortController();
-    fetch(`/api/public/sale/offer?tour=${encodeURIComponent(tour)}&date=${date}`, { signal: ctrl.signal })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((body: { offer: SaleOffer | null } | null) => {
-        setOffer(body?.offer ? { key, offer: body.offer } : null);
-      })
-      // Best effort: without an answer the form simply carries on.
-      .catch(() => {});
-    return () => ctrl.abort();
-  }, [key, dismissed]);
+  if (!offer || !active || regularChosen) return null;
 
-  const shown = offer && offer.key === key && !dismissed.has(offer.key) ? offer.offer : null;
-  const dismiss = () => {
-    if (key) setDismissed((prev) => new Set(prev).add(key));
-  };
-
-  if (!shown) return null;
-  const href = shown.tourSlug ? `${WWW_BASE}/tours/${shown.tourSlug}` : `${WWW_BASE}/${shown.saleSlug}`;
+  const tourPage = offer.tourSlug
+    ? `${WWW_BASE}/tours/${offer.tourSlug}?sale=1&date=${tourDate}`
+    : `${WWW_BASE}/${offer.saleSlug}`;
 
   return (
-    <AlertDialog open onOpenChange={(open) => !open && dismiss()}>
+    <AlertDialog open>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{dateLabel(tourDate)} is in our {shown.saleName}</AlertDialogTitle>
+          <AlertDialogTitle>{dateLabel(tourDate)} is in our {offer.saleName}</AlertDialogTitle>
           <AlertDialogDescription>
-            Save {gbp(shown.discountGBP)} on this tour with a sale place.{" "}
-            {shown.left === 1 ? "1 place is" : `${shown.left} places are`} left. Sale places are reserved on the
-            tour page, where you hold yours while you pay.
+            Save up to {gbp(offer.discountGBP)} on this date.{" "}
+            {offer.left === 1 ? "1 sale place is" : `${offer.left} sale places are`} left. Sale dates are booked
+            at the sale price: you&apos;ll hold your place on the tour page, then come back here to finish.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={dismiss}>Continue at regular price</AlertDialogCancel>
+          <AlertDialogCancel onClick={onChooseAnotherDate}>Choose another date</AlertDialogCancel>
           <AlertDialogAction asChild>
-            <a href={href}>Get the sale price</a>
+            <a href={tourPage}>Get the sale price</a>
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -42,6 +42,15 @@ const displayDate = (date: string) => {
   });
 };
 
+/** Tags a tour date with the sale it's in. */
+function DateBadge({ text }: { text: string }) {
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-full bg-[#EF3340] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+      {text}
+    </span>
+  );
+}
+
 export default function ReservationTourSelectionSidebarCard({
   step,
   paymentConfirmed,
@@ -327,6 +336,9 @@ export default function ReservationTourSelectionSidebarCard({
                                 >
                                   {selectedDateOption?.label || displayDate(tourDate)}
                                 </span>
+                                {selectedDateOption?.badge && (
+                                  <DateBadge text={selectedDateOption.badge} />
+                                )}
                                 {canOpenDateMenu && (
                                   <span className="text-[#EF3340] text-xs font-semibold">
                                     Tap to change
@@ -366,7 +378,10 @@ export default function ReservationTourSelectionSidebarCard({
                                       setDateMenuOpen(false);
                                     }}
                                   >
-                                    <div className="font-medium">{option.label}</div>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-medium">{option.label}</span>
+                                      {option.badge && <DateBadge text={option.badge} />}
+                                    </div>
                                     {option.description && (
                                       <div className="text-xs text-muted-foreground mt-0.5">
                                         {option.description}
