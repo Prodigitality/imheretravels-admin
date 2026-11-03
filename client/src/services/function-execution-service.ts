@@ -462,6 +462,9 @@ class FunctionExecutionService {
         // moment a tour is renamed.
         tourId: row.tourId,
         tourCode: row.tourCode,
+        // Sale bookings keep their slot discount here, not in the Event Name /
+        // Discount columns, so a recalculation must read it from the row.
+        saleDiscountGBP: row.saleDiscountGBP,
       };
       args.push(bookingContext);
     }
