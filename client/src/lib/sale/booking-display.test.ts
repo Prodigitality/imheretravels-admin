@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { saleColumnValue } from "./booking-display";
+import { saleColumnValue, saleDiscountedCost } from "./booking-display";
 
 const booking = { saleName: "Black Friday Sale 2026", saleDiscountGBP: 500, originalTourCost: 1199, discountedTourCost: 699 };
 
@@ -23,5 +23,19 @@ describe("saleColumnValue", () => {
     expect(saleColumnValue(booking, "tourPackageName")).toBeNull();
     expect(saleColumnValue({ originalTourCost: 1199, discountedTourCost: 699 }, "discountRate")).toBeNull();
     expect(saleColumnValue({ originalTourCost: 1199, discountedTourCost: 699 }, "eventName")).toBeNull();
+  });
+});
+
+describe("saleDiscountedCost", () => {
+  it("takes the slot discount off the tour price", () => {
+    expect(saleDiscountedCost(1299, 300)).toBe(999);
+    expect(saleDiscountedCost("1299", "500")).toBe(799);
+  });
+
+  it("refuses a missing, zero or larger-than-price discount", () => {
+    expect(saleDiscountedCost(1299, 0)).toBeNull();
+    expect(saleDiscountedCost(1299, undefined)).toBeNull();
+    expect(saleDiscountedCost("", 300)).toBeNull();
+    expect(saleDiscountedCost(200, 300)).toBeNull();
   });
 });

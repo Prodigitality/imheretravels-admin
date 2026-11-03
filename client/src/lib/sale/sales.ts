@@ -166,7 +166,50 @@ export async function getSaleIdBySlug(slug: string): Promise<string | null> {
 /** Public availability: slot states and prices only, never holder data. */
 export async function getPublicAvailability(saleId: string): Promise<PublicSaleAvailability | null> {
   const sale = await getSale(saleId);
-  if (!sale) return null;
+  return sale ? publicAvailabilityOf(saleId, sale) : null;
+}
+
+/** A sale place the reservation form can point a regular-price customer to. */
+export interface SaleOffer {
+  saleName: string;
+  saleSlug: string;
+  tourSlug: string;
+  left: number;
+  /** Discount on the next free slot, in GBP. */
+  discountGBP: number;
+}
+
+/**
+ * The open sale this tour date is in, with a slot free right now. Null when the
+ * date was left out of every sale or nothing is free.
+ */
+export async function findSaleOffer(tourPackageId: string, dateKey: string): Promise<SaleOffer | null> {
+  const live = await adminDb().collection(SALE_COL.events).where("status", "==", "live").get();
+  for (const d of live.docs) {
+    const listed = ((d.data().tours ?? []) as { tourPackageId: string; excludedDates?: string[] }[]).find(
+      (t) => t.tourPackageId === tourPackageId,
+    );
+    if (!listed || listed.excludedDates?.includes(dateKey)) continue;
+
+    const sale = await getSale(d.id);
+    if (!sale) continue;
+    const availability = publicAvailabilityOf(d.id, sale);
+    const tour = availability.tours.find((t) => t.tourPackageId === tourPackageId);
+    const next = tour?.slots.find((s) => s.state === "available");
+    if (!availability.isOpen || !tour || !next) continue;
+
+    return {
+      saleName: sale.name,
+      saleSlug: sale.slug,
+      tourSlug: sale.tours.find((t) => t.tourPackageId === tourPackageId)?.tourSlug ?? "",
+      left: tour.left,
+      discountGBP: next.discountGBP,
+    };
+  }
+  return null;
+}
+
+function publicAvailabilityOf(saleId: string, sale: SaleWithInventory): PublicSaleAvailability {
   const now = Date.now();
   return {
     saleId,

@@ -66,6 +66,13 @@ export interface Booking {
   discountType?: "percent" | "amount"; // percent or flat amount
   discountRate?: number;
 
+  // Sale (e.g. Black Friday) the booking was sold in. Kept apart from the
+  // discount columns above, which recompute from discountEvents.
+  saleEventId?: string;
+  saleName?: string;
+  saleSlotIndex?: number;
+  saleDiscountGBP?: number; // flat GBP off the tour price
+
   // Price snapshot metadata (for historical price tracking)
   priceSnapshotDate?: Timestamp; // When prices were captured from tourPackage
   tourPackagePricingVersion?: number; // Version number of tourPackage pricing used

@@ -21,3 +21,11 @@ export function saleColumnValue(booking: SaleBookingFields, columnId: string): s
     Number(booking.originalTourCost) - Number(booking.discountedTourCost);
   return discount > 0 ? `£${Math.round(discount)} off` : null;
 }
+
+/** Discounted tour cost of a sale booking: tour price less the slot discount. */
+export function saleDiscountedCost(originalTourCost: unknown, discountGBP: unknown): number | null {
+  const original = Number(originalTourCost);
+  const discount = Number(discountGBP);
+  if (!(original > 0) || !(discount > 0) || discount > original) return null;
+  return Math.round((original - discount) * 100) / 100;
+}
