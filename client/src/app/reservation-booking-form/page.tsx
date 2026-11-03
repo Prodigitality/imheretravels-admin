@@ -27,6 +27,7 @@ import StepFooterActionsSection from "./components/StepFooterActionsSection";
 import Step1PersonalReservationSection from "./components/Step1PersonalReservationSection";
 import ReservationTourSelectionSidebarCard from "./components/ReservationTourSelectionSidebarCard";
 import SaleHoldBanner from "./components/SaleHoldBanner";
+import SaleOfferPrompt from "./components/SaleOfferPrompt";
 import { useSaleHold } from "./hooks/effects/useSaleHold";
 import { useStep3Countdown } from "./hooks/effects/useStep3Countdown";
 import {
@@ -1022,6 +1023,11 @@ const Page = () => {
                 }`}
               >
                 <SaleHoldBanner sale={sale} prices={saleTravellerPrices} />
+                <SaleOfferPrompt
+                  tourPackageId={tourPackage}
+                  tourDate={tourDate}
+                  enabled={step === 1 && !sale.isSaleHold && !paymentConfirmed}
+                />
                 <AnimatePresence mode="wait" initial={false} custom={stepSwipeDirection}>
                   <motion.div
                     key={`reservation-step-${step}`}

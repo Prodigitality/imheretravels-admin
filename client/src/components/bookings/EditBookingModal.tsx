@@ -66,6 +66,8 @@ import {
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { AddOnsEditor } from "@/components/bookings/AddOnsEditor";
+import { SaleDiscountEditor } from "@/components/bookings/SaleDiscountEditor";
+import { saleDiscountedCost } from "@/lib/sale/booking-display";
 import type { Booking } from "@/types/bookings";
 import type { TourPackage, PricingHistoryEntry } from "@/types/tours";
 import { SheetColumn, TypeScriptFunction } from "@/types/sheet-management";
@@ -84,6 +86,9 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { isEqual, debounce } from "lodash";
+
+// Discounts columns a sale booking replaces with SaleDiscountEditor.
+const SALE_DISCOUNT_COLUMNS = ["eventName", "discountRate", "discountType"];
 
 interface EditBookingModalProps {
   isOpen: boolean;
@@ -1958,7 +1963,8 @@ export default function EditBookingModal({
     if (!selectedOption) return;
 
     let originalTourCost = selectedOption.pricing.original;
-    let discountedTourCost = selectedOption.pricing.discounted ?? undefined;
+    let discountedTourCost: number | undefined =
+      selectedOption.pricing.discounted ?? undefined;
     let reservationFee = selectedOption.pricing.deposit;
 
     const bookingDateKey = getDateKey(formData.tourDate);
@@ -1983,6 +1989,12 @@ export default function EditBookingModal({
         }
       }
     }
+
+    // A sale booking keeps its slot discount off whichever price is applied.
+    const salePrice = formData.saleName
+      ? saleDiscountedCost(originalTourCost, formData.saleDiscountGBP)
+      : null;
+    if (salePrice !== null) discountedTourCost = salePrice;
 
     batchedWriter.queueFieldUpdate(booking.id, "lockPricing", true);
     batchedWriter.queueFieldUpdate(booking.id, "priceSource", "snapshot");
@@ -2059,6 +2071,43 @@ export default function EditBookingModal({
     toast,
     executeDirectDependents,
   ]);
+
+  // Sale bookings: store the slot discount, take it off the tour price, and
+  // lock the result so a later recalculation can't drop it.
+  const handleApplySaleDiscount = useCallback(
+    async (saleDiscountGBP: number, discountedTourCost: number) => {
+      if (!booking?.id) return;
+
+      batchedWriter.queueFieldUpdate(booking.id, "saleDiscountGBP", saleDiscountGBP);
+      batchedWriter.queueFieldUpdate(booking.id, "discountedTourCost", discountedTourCost);
+      batchedWriter.queueFieldUpdate(booking.id, "lockPricing", true);
+      batchedWriter.queueFieldUpdate(booking.id, "priceSource", "manual");
+
+      const updatedFormData: Partial<Booking> = {
+        ...formData,
+        saleDiscountGBP,
+        discountedTourCost,
+        lockPricing: true,
+        priceSource: "manual",
+      };
+      setFormData(updatedFormData);
+      setIsSaving(true);
+      debouncedSaveIndicator();
+
+      // Balances and payment term amounts follow the new price.
+      const finalData = await executeDirectDependents(
+        "discountedTourCost",
+        updatedFormData,
+      );
+      if (finalData !== updatedFormData) setFormData(finalData);
+
+      toast({
+        title: "Sale price applied",
+        description: `Discounted Tour Cost is now £${discountedTourCost}.`,
+      });
+    },
+    [booking?.id, formData, debouncedSaveIndicator, executeDirectDependents, toast],
+  );
 
   // Reactive tracking: reload Tour Date options when Tour Package Name changes
   const previousTourPackageName = React.useRef<string | undefined>(undefined);
@@ -3738,6 +3787,17 @@ export default function EditBookingModal({
 
                       if (filteredColumns.length === 0) return null;
 
+                      // Sale bookings show their sale here in place of the
+                      // discountEvents columns, as Booking Details does.
+                      const showSaleDiscount =
+                        !!formData.saleName &&
+                        filteredColumns.some((c) => c.id === "eventName");
+                      const columnsToRender = showSaleDiscount
+                        ? filteredColumns.filter(
+                            (c) => !SALE_DISCOUNT_COLUMNS.includes(c.id),
+                          )
+                        : filteredColumns;
+
                       return (
                         <Card
                           key={parentTab}
@@ -3844,8 +3904,17 @@ export default function EditBookingModal({
                             </div>
                           </CardHeader>
                           <CardContent className="p-0" tabIndex={-1}>
+                            {showSaleDiscount && (
+                              <SaleDiscountEditor
+                                saleName={formData.saleName!}
+                                discountGBP={formData.saleDiscountGBP}
+                                originalTourCost={formData.originalTourCost}
+                                discountedTourCost={formData.discountedTourCost}
+                                onApply={handleApplySaleDiscount}
+                              />
+                            )}
                             <div className="border border-field-border">
-                              {filteredColumns.map((column) => {
+                              {columnsToRender.map((column) => {
                                 const error = fieldErrors[column.id];
                                 const isFunction =
                                   column.dataType === "function";
