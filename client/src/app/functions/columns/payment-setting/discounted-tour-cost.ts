@@ -96,6 +96,7 @@ export default async function getTourDiscountedCost(
     priceSource?: string;
     tourId?: string;
     tourCode?: string;
+    saleDiscountGBP?: number | string | null;
   },
 ): Promise<number | ""> {
   // If booking has locked pricing, return the stored value
@@ -185,6 +186,13 @@ export default async function getTourDiscountedCost(
     }
 
     return discountedCost;
+  }
+
+  // Sale slot discount (flat GBP off the tour price). Without this, unlocking
+  // a sale booking's pricing silently drops the discount it was sold at.
+  const saleDiscount = Number(bookingContext?.saleDiscountGBP);
+  if (saleDiscount > 0) {
+    return Math.round((baseCost - saleDiscount) * 100) / 100;
   }
 
   // No discount, return empty string (system should use Original Tour Cost instead)
