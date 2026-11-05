@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const confirmMock = vi.fn();
 const getReservationMock = vi.fn();
@@ -20,6 +20,11 @@ const base = () => ({
   setBookingId: vi.fn(),
   onError: vi.fn(),
   bookingWait: { timeoutMs: 50, intervalMs: 1 },
+});
+
+beforeEach(() => {
+  // No reservation found unless a test says otherwise (e.g. the final sale check).
+  getReservationMock.mockResolvedValue(null);
 });
 
 afterEach(() => {
