@@ -106,6 +106,13 @@ export type StepFooterActionsSectionProps = {
   bookingId: string;
   selectedPackage?: SelectedPackage;
   selectedDateDetail?: SelectedDateDetail;
+  /**
+   * The party's tour cost as priced in step 3: the sale prices paid for a
+   * Black Friday booking, otherwise the date's price (or the tour price) for
+   * each traveller. Receipts and the confirmation PDF use this, so they match
+   * the booking.
+   */
+  totalPartyPrice: number;
   depositAmount: number;
   numberOfPeople: number;
   selectedPaymentPlanLabel: string;
@@ -163,7 +170,7 @@ export default function StepFooterActionsSection({
   allPlansSelected,
   bookingId,
   selectedPackage,
-  selectedDateDetail,
+  totalPartyPrice,
   depositAmount,
   numberOfPeople,
   selectedPaymentPlanLabel,
@@ -437,13 +444,8 @@ export default function StepFooterActionsSection({
               lastName={lastName}
               paymentPlan={selectedPaymentPlanLabel}
               reservationFee={depositAmount}
-              totalAmount={(selectedPackage?.price || 0) * numberOfPeople}
-              remainingBalance={
-                ((selectedDateDetail?.customOriginal ?? selectedPackage?.price) ||
-                  0) *
-                  numberOfPeople -
-                depositAmount
-              }
+              totalAmount={totalPartyPrice}
+              remainingBalance={totalPartyPrice - depositAmount}
               paymentDate={new Date().toLocaleDateString("en-US", {
                 month: "short",
                 day: "numeric",
@@ -602,16 +604,8 @@ export default function StepFooterActionsSection({
                   reservationFee={depositAmount}
                   currency="GBP"
                   email={email}
-                  totalAmount={
-                    ((selectedDateDetail?.customOriginal ?? selectedPackage?.price) ||
-                      0) * numberOfPeople
-                  }
-                  remainingBalance={
-                    ((selectedDateDetail?.customOriginal ?? selectedPackage?.price) ||
-                      0) *
-                      numberOfPeople -
-                    depositAmount
-                  }
+                  totalAmount={totalPartyPrice}
+                  remainingBalance={totalPartyPrice - depositAmount}
                   travelDate={tourDate}
                   paymentDate={new Date().toLocaleDateString("en-US", {
                     month: "short",
@@ -701,9 +695,8 @@ export default function StepFooterActionsSection({
                       lastName,
                       paymentPlanLabel.replace(/^P\d+_[A-Z_]+\s-\s/, ""),
                       depositAmount,
-                      (selectedPackage?.price || 0) * numberOfPeople,
-                      (selectedPackage?.price || 0) * numberOfPeople -
-                        depositAmount,
+                      totalPartyPrice,
+                      totalPartyPrice - depositAmount,
                       new Date().toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",

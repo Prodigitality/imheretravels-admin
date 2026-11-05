@@ -7,6 +7,7 @@ import {
   getPaymentPlansToSend,
   getSelectedPaymentPlansCount,
   getTravelerPaymentPlan,
+  partyTourCost,
   resolveBookingDocumentIds,
   upsertPaymentPlanAtIndex,
 } from "./step3PaymentPlan";
@@ -136,5 +137,26 @@ describe("step3PaymentPlan utilities", () => {
     ).toEqual(["doc-fallback"]);
 
     expect(resolveBookingDocumentIds({})).toEqual([]);
+  });
+});
+
+describe("partyTourCost", () => {
+  it("sums the sale prices paid for a Black Friday party", () => {
+    expect(
+      partyTourCost({ saleTravellerPrices: [1999, 2199], datePrice: 2499, tourPrice: 2000, numberOfPeople: 2 }),
+    ).toBe(4198);
+  });
+
+  it("uses the date's price for each traveller when there is no sale", () => {
+    expect(partyTourCost({ saleTravellerPrices: null, datePrice: 2499, tourPrice: 2000, numberOfPeople: 2 })).toBe(4998);
+  });
+
+  it("falls back to the tour price, then to 0", () => {
+    expect(partyTourCost({ tourPrice: 1299, numberOfPeople: 1 })).toBe(1299);
+    expect(partyTourCost({ numberOfPeople: 3 })).toBe(0);
+  });
+
+  it("ignores an empty sale price list", () => {
+    expect(partyTourCost({ saleTravellerPrices: [], tourPrice: 1299, numberOfPeople: 2 })).toBe(2598);
   });
 });

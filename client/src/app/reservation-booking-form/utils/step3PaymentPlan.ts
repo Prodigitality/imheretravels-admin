@@ -113,3 +113,23 @@ export const upsertPaymentPlanAtIndex = (
   updated[tabIndex] = nextPlan;
   return updated;
 };
+
+/**
+ * The party's tour cost: the sum of the per-traveller sale prices for a Black
+ * Friday booking, otherwise the date's custom price (or the tour price) for
+ * each traveller. Step 3, the receipt and the confirmation PDF all use this.
+ */
+export const partyTourCost = ({
+  saleTravellerPrices,
+  datePrice,
+  tourPrice,
+  numberOfPeople,
+}: {
+  saleTravellerPrices?: number[] | null;
+  datePrice?: number;
+  tourPrice?: number;
+  numberOfPeople: number;
+}): number =>
+  saleTravellerPrices?.length
+    ? saleTravellerPrices.reduce((sum, p) => sum + p, 0)
+    : ((datePrice ?? tourPrice) || 0) * numberOfPeople;

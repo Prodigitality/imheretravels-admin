@@ -11,7 +11,7 @@
 import { adminDb } from "@/lib/firebase-admin-db";
 import { SaleError, claimSlots, markPaying, releaseHold } from "@/lib/sale/holds";
 import { SALE_COL, inventoryRef, saleRef, tsFromMs } from "@/lib/sale/store";
-import { saveSale } from "@/lib/sale/sales";
+import { SaleInput, saveSale } from "@/lib/sale/sales";
 
 async function main() {
   if (process.env.FIREBASE_PROJECT_ID !== "imheretravels-dev") {
@@ -23,9 +23,11 @@ async function main() {
   const tour = tourSnap.docs[0];
   const slug = `race-test-${Date.now()}`;
 
+  // Parse like the API route does, so schema defaults (e.g. redirectSlugs)
+  // are filled in and the fixture keeps up with new sale fields.
   const saleId = await saveSale(
     null,
-    {
+    SaleInput.parse({
       slug,
       name: "Race test",
       status: "live",
@@ -46,7 +48,7 @@ async function main() {
           ladder: [500, 300, 200, 100],
         },
       ],
-    },
+    }),
     "race-test",
   );
   const holdIds: string[] = [];

@@ -7,6 +7,7 @@ import {
 } from "../../utils/bookingFlow";
 import {
   areAllPaymentPlansSelected,
+  partyTourCost,
   upsertPaymentPlanAtIndex,
   type PersonPaymentPlan,
 } from "../../utils/step3PaymentPlan";
@@ -82,10 +83,13 @@ export const useReservationPaymentPlanning = ({
   );
   const totalPartyPrice = useMemo(
     () =>
-      saleTravellerPrices
-        ? saleTravellerPrices.reduce((sum, p) => sum + p, 0)
-        : selectedTourPrice * numberOfPeople,
-    [saleTravellerPrices, selectedTourPrice, numberOfPeople],
+      partyTourCost({
+        saleTravellerPrices,
+        datePrice: selectedDateDetail?.customOriginal,
+        tourPrice: selectedPackage?.price,
+        numberOfPeople,
+      }),
+    [saleTravellerPrices, selectedDateDetail, selectedPackage, numberOfPeople],
   );
 
   const availablePaymentPlans = useMemo<AvailablePaymentPlan[]>(() => {
@@ -182,6 +186,7 @@ export const useReservationPaymentPlanning = ({
   return {
     availablePaymentTerm,
     selectedTourPrice,
+    totalPartyPrice,
     availablePaymentPlans,
     selectedPaymentPlanLabel,
     allPlansSelected,

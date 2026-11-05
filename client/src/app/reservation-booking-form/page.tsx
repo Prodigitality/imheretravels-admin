@@ -451,6 +451,7 @@ const Page = () => {
   const {
     availablePaymentTerm,
     selectedTourPrice,
+    totalPartyPrice,
     availablePaymentPlans,
     selectedPaymentPlanLabel,
     allPlansSelected,
@@ -821,6 +822,7 @@ const Page = () => {
     bookingId: bookingId || "PENDING",
     selectedPackage,
     selectedDateDetail,
+    totalPartyPrice,
     depositAmount,
     numberOfPeople,
     selectedPaymentPlanLabel,
