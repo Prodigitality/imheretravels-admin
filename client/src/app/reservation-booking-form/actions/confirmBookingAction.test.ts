@@ -131,17 +131,16 @@ describe("runConfirmBookingAction", () => {
     fetchSpy.mockRestore();
   });
   const confirmParty = async (isLastMinute: boolean) => {
-    getDocMock.mockResolvedValueOnce({
-      exists: () => true,
-      data: () => ({ bookingDocumentIds: ["main", "guest"] }),
-    } as any);
+    getReservationMock.mockResolvedValueOnce({
+      id: "doc-1",
+      bookingDocumentIds: ["main", "guest"],
+    });
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue({ ok: true, json: async () => ({ ok: true }) } as any);
     fetchSpy.mockClear();
 
     await runConfirmBookingAction({
-      db: {} as any,
       paymentConfirmed: true,
       isLastMinute,
       allPlansSelected: true,
