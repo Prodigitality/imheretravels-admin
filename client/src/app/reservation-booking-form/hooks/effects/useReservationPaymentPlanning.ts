@@ -8,6 +8,7 @@ import {
 import {
   areAllPaymentPlansSelected,
   partyTourCost,
+  regularPartyTourCost,
   upsertPaymentPlanAtIndex,
   type PersonPaymentPlan,
 } from "../../utils/step3PaymentPlan";
@@ -90,6 +91,15 @@ export const useReservationPaymentPlanning = ({
         numberOfPeople,
       }),
     [saleTravellerPrices, selectedDateDetail, selectedPackage, numberOfPeople],
+  );
+  const regularPartyPrice = useMemo(
+    () =>
+      regularPartyTourCost({
+        datePrice: selectedDateDetail?.customOriginal,
+        tourPrice: selectedPackage?.price,
+        numberOfPeople,
+      }),
+    [selectedDateDetail, selectedPackage, numberOfPeople],
   );
 
   const availablePaymentPlans = useMemo<AvailablePaymentPlan[]>(() => {
@@ -187,6 +197,7 @@ export const useReservationPaymentPlanning = ({
     availablePaymentTerm,
     selectedTourPrice,
     totalPartyPrice,
+    regularPartyPrice,
     availablePaymentPlans,
     selectedPaymentPlanLabel,
     allPlansSelected,

@@ -8,6 +8,7 @@ import {
   getSelectedPaymentPlansCount,
   getTravelerPaymentPlan,
   partyTourCost,
+  regularPartyTourCost,
   resolveBookingDocumentIds,
   upsertPaymentPlanAtIndex,
 } from "./step3PaymentPlan";
@@ -158,5 +159,12 @@ describe("partyTourCost", () => {
 
   it("ignores an empty sale price list", () => {
     expect(partyTourCost({ saleTravellerPrices: [], tourPrice: 1299, numberOfPeople: 2 })).toBe(2598);
+  });
+});
+
+describe("regularPartyTourCost", () => {
+  it("prices every traveller at the date's price, else the tour price", () => {
+    expect(regularPartyTourCost({ datePrice: 2499, tourPrice: 2000, numberOfPeople: 2 })).toBe(4998);
+    expect(regularPartyTourCost({ tourPrice: 2000, numberOfPeople: 1 })).toBe(2000);
   });
 });

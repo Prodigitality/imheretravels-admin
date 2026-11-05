@@ -10,7 +10,10 @@ interface ReceiptProps {
   email: string;
   travelDate: string;
   paymentDate: string;
+  /** Regular tour cost for the party. */
   totalAmount?: number;
+  /** Tour cost after a sale discount; shown as its own line when lower than totalAmount. */
+  discountedAmount?: number;
   remainingBalance?: number;
   numberOfTravelers?: number;
 }
@@ -24,9 +27,14 @@ export default function Receipt({
   travelDate,
   paymentDate,
   totalAmount,
+  discountedAmount,
   remainingBalance,
   numberOfTravelers = 1,
 }: ReceiptProps) {
+  const discount =
+    totalAmount !== undefined && discountedAmount !== undefined && discountedAmount < totalAmount
+      ? totalAmount - discountedAmount
+      : 0;
   const currencySymbol =
     currency === "GBP" ? "£" : currency === "EUR" ? "£" : "$";
 
@@ -101,6 +109,28 @@ export default function Receipt({
                   </span>
                 </div>
               )}
+              {discount > 0 && (
+                <>
+                  <div className="flex justify-between py-2">
+                    <span className="text-sm text-muted-foreground print:text-gray-600">
+                      Sale discount
+                    </span>
+                    <span className="text-sm font-semibold text-green-600 print:text-green-700">
+                      -{currencySymbol}
+                      {discount.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-sm text-muted-foreground print:text-gray-600">
+                      Discounted Tour Cost
+                    </span>
+                    <span className="text-sm font-semibold text-foreground print:text-gray-900">
+                      {currencySymbol}
+                      {discountedAmount!.toFixed(2)}
+                    </span>
+                  </div>
+                </>
+              )}
             </>
           )}
           <div className="flex justify-between py-2">
@@ -131,7 +161,8 @@ export default function Receipt({
                   {remainingBalance.toFixed(2)}
                 </span>
               </div>
-              {numberOfTravelers > 1 && (
+              {/* Sale prices can differ per traveller, so no even split then. */}
+              {numberOfTravelers > 1 && discount === 0 && (
                 <div className="flex justify-between py-2">
                   <span className="text-xs text-muted-foreground print:text-gray-600 pl-4">
                     Per person: {currencySymbol}

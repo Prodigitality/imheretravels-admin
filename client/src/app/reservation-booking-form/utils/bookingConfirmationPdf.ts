@@ -70,7 +70,13 @@ export async function generateBookingConfirmationPDF(
   currency: string = "GBP",
   numberOfTravelers: number = 1,
   bookingType?: string,
+  /** Tour cost after a sale discount; listed under the regular cost when lower. */
+  discountedAmount?: number,
 ) {
+  const discount =
+    discountedAmount !== undefined && discountedAmount < totalAmount
+      ? totalAmount - discountedAmount
+      : 0;
   const currencySymbol =
     currency === "GBP" ? "£" : currency === "EUR" ? "£" : "$";
   const pdf = new jsPDF({
@@ -237,6 +243,15 @@ export async function generateBookingConfirmationPDF(
           {
             label: "  Per person",
             value: `${currencySymbol}${(totalAmount / numberOfTravelers).toFixed(2)}`,
+          },
+        ]
+      : []),
+    ...(discount > 0
+      ? [
+          { label: "Sale discount", value: `-${currencySymbol}${discount.toFixed(2)}` },
+          {
+            label: "Discounted Tour Cost",
+            value: `${currencySymbol}${discountedAmount!.toFixed(2)}`,
           },
         ]
       : []),

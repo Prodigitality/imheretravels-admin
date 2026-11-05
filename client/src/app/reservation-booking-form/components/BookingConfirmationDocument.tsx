@@ -11,7 +11,10 @@ interface BookingConfirmationDocumentProps {
   lastName: string;
   paymentPlan: string;
   reservationFee: number;
+  /** Regular tour cost for the party. */
   totalAmount: number;
+  /** Tour cost after a sale discount; shown as its own line when lower than totalAmount. */
+  discountedAmount?: number;
   remainingBalance: number;
   paymentDate: string;
   currency?: string;
@@ -27,10 +30,15 @@ export default function BookingConfirmationDocument({
   paymentPlan,
   reservationFee,
   totalAmount,
+  discountedAmount,
   remainingBalance,
   paymentDate,
   currency = "GBP",
 }: BookingConfirmationDocumentProps) {
+  const discount =
+    discountedAmount !== undefined && discountedAmount < totalAmount
+      ? totalAmount - discountedAmount
+      : 0;
   const currencySymbol = currency === "GBP" ? "£" : currency === "EUR" ? "£" : "$";
 
   return (
@@ -261,6 +269,24 @@ export default function BookingConfirmationDocument({
                 {totalAmount.toFixed(2)}
               </span>
             </div>
+            {discount > 0 && (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: "12px", color: "#333" }}>Sale discount</span>
+                  <span style={{ fontSize: "12px", fontWeight: "500", color: "#16a34a" }}>
+                    -{currencySymbol}
+                    {discount.toFixed(2)}
+                  </span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: "12px", color: "#333" }}>Discounted Tour Cost</span>
+                  <span style={{ fontSize: "12px", fontWeight: "500", color: "#000" }}>
+                    {currencySymbol}
+                    {discountedAmount!.toFixed(2)}
+                  </span>
+                </div>
+              </>
+            )}
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ fontSize: "12px", color: "#333" }}>
                 Reservation Fee Paid

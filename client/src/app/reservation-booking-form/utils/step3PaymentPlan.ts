@@ -114,10 +114,21 @@ export const upsertPaymentPlanAtIndex = (
   return updated;
 };
 
+/** The party's regular tour cost: the date's custom price (or the tour price) per traveller. */
+export const regularPartyTourCost = ({
+  datePrice,
+  tourPrice,
+  numberOfPeople,
+}: {
+  datePrice?: number;
+  tourPrice?: number;
+  numberOfPeople: number;
+}): number => ((datePrice ?? tourPrice) || 0) * numberOfPeople;
+
 /**
- * The party's tour cost: the sum of the per-traveller sale prices for a Black
- * Friday booking, otherwise the date's custom price (or the tour price) for
- * each traveller. Step 3, the receipt and the confirmation PDF all use this.
+ * The party's tour cost as charged: the sum of the per-traveller sale prices
+ * for a Black Friday booking, otherwise the regular cost. Step 3, the receipt
+ * and the confirmation PDF all use this for the balance.
  */
 export const partyTourCost = ({
   saleTravellerPrices,
@@ -132,4 +143,4 @@ export const partyTourCost = ({
 }): number =>
   saleTravellerPrices?.length
     ? saleTravellerPrices.reduce((sum, p) => sum + p, 0)
-    : ((datePrice ?? tourPrice) || 0) * numberOfPeople;
+    : regularPartyTourCost({ datePrice, tourPrice, numberOfPeople });
