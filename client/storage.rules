@@ -8,8 +8,10 @@ rules_version = '2';
 // - API routes and Cloud Functions use firebase-admin, which bypasses rules.
 // - Public pages (www, booking-status, emails) use stored download URLs. Those
 //   carry a token and are not checked against these rules.
-// - traveller-documents/ (portal passports etc.) is server-only: no client
-//   access at all, staff included.
+// - traveller-documents/ (portal passports etc.) and partner-applications/
+//   (Work With Us supplier documents) are server-only: no client access at
+//   all, staff included. Staff open supplier documents through a short-lived
+//   signed URL from /api/partner-applications/[id]/attachment.
 service firebase.storage {
   match /b/{bucket}/o {
 
@@ -23,7 +25,8 @@ service firebase.storage {
     // separate "if false" block for traveller-documents/ would not override
     // a broader allow. {rest=**} also matches zero segments (root-level files).
     match /{top}/{rest=**} {
-      allow read, write: if top != 'traveller-documents' && isApprovedStaff();
+      allow read, write: if !(top in ['traveller-documents', 'partner-applications'])
+        && isApprovedStaff();
     }
   }
 }

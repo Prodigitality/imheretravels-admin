@@ -17,9 +17,13 @@ service cloud.firestore {
     //   saleEvents, saleHolds, saleRateLimits: Black Friday slot inventory and
     //     holds; only the sale API may change them, so a browser can't free or
     //     grab slots
+    //   partnerApplications, partnerApplicationRateLimits: Work With Us
+    //     applications (personal data) from www; staff read them through the
+    //     /api/partner-applications routes
     match /{collection}/{document=**} {
       allow read, write: if request.time < timestamp.date(2026, 12, 31)
-        && !(collection in ['guestPassportData', 'saleEvents', 'saleHolds', 'saleRateLimits']);
+        && !(collection in ['guestPassportData', 'saleEvents', 'saleHolds', 'saleRateLimits',
+                            'partnerApplications', 'partnerApplicationRateLimits']);
     }
   }
 }

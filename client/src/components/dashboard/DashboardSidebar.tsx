@@ -30,6 +30,7 @@ import {
   Globe,
   ShieldAlert,
   BookOpen,
+  Handshake,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth-store";
 import {
@@ -89,6 +90,12 @@ const navigation = [
     href: "/reviews",
     icon: Star,
     description: "Moderate traveler reviews",
+  },
+  {
+    name: "Partnerships",
+    href: "/partnerships",
+    icon: Handshake,
+    description: "Host, affiliate & supplier applications",
   },
   {
     name: "Payment Types",
