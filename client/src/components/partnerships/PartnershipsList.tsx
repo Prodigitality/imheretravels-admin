@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Download, Loader2, Mail, Paperclip, RefreshCw, Search } from "lucide-react";
+import { ChevronRight, Download, Inbox, Loader2, Mail, Paperclip, RefreshCw, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,13 +43,36 @@ import {
   type PartnerApplicationType,
 } from "@/types/partner-applications";
 
-const STATUS_STYLES: Record<PartnerApplicationStatus, string> = {
-  new: "bg-crimson-red/10 text-crimson-red border-crimson-red/30",
-  reviewing: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-200",
-  contacted: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-200",
-  accepted: "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-200",
-  declined: "bg-muted text-muted-foreground border-border",
+// No `dark:` variants: admin's Tailwind config has no darkMode setting, so
+// `dark:` follows the OS theme and would put pale text on these light badges.
+const STATUS_STYLES: Record<PartnerApplicationStatus, { badge: string; dot: string }> = {
+  new: { badge: "bg-[#FDECEE] text-[#B4232F] border-[#F7C4C9]", dot: "bg-[#EF3340]" },
+  reviewing: { badge: "bg-[#FFF4D6] text-[#8A5A00] border-[#F5DB8F]", dot: "bg-[#E0A100]" },
+  contacted: { badge: "bg-[#E6F0FF] text-[#1D4ED8] border-[#BFD5FB]", dot: "bg-[#2563EB]" },
+  accepted: { badge: "bg-[#E3F8EC] text-[#11703F] border-[#B5E8CB]", dot: "bg-[#16A34A]" },
+  declined: { badge: "bg-[#F1F1F1] text-[#505050] border-[#DADADA]", dot: "bg-[#959595]" },
 };
+
+const TH = "px-4 text-left align-middle text-xs font-semibold uppercase tracking-wide text-muted-foreground";
+const TD = "px-4 py-3.5 align-middle";
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase() || "?";
+}
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return "—";
+  const diff = Date.now() - new Date(iso).getTime();
+  const min = Math.round(diff / 60_000);
+  if (min < 1) return "Just now";
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.round(h / 24);
+  if (d < 7) return `${d} day${d === 1 ? "" : "s"} ago`;
+  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
 
 const SINGULAR_LABELS: Record<PartnerApplicationType, string> = {
   host: "Host application",
@@ -59,7 +82,11 @@ const SINGULAR_LABELS: Record<PartnerApplicationType, string> = {
 
 function StatusBadge({ status }: { status: PartnerApplicationStatus }) {
   return (
-    <Badge variant="outline" className={cn("whitespace-nowrap", STATUS_STYLES[status])}>
+    <Badge
+      variant="outline"
+      className={cn("gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 font-medium", STATUS_STYLES[status].badge)}
+    >
+      <span className={cn("size-1.5 rounded-full", STATUS_STYLES[status].dot)} aria-hidden="true" />
       {PARTNER_STATUS_LABELS[status]}
     </Badge>
   );
@@ -206,62 +233,136 @@ export default function PartnershipsList() {
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
       )}
 
-      <div className="rounded-md border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{type === "supplier" ? "Business / contact" : "Name"}</TableHead>
-              <TableHead className="hidden md:table-cell">Email</TableHead>
-              <TableHead className="hidden lg:table-cell">Country</TableHead>
-              <TableHead className="hidden sm:table-cell">Received</TableHead>
-              <TableHead>Status</TableHead>
+      {/* The shared Table has no cell padding or text alignment, so it's set here. */}
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <Table className="table-fixed">
+          <TableHeader className="bg-muted/50">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className={cn(TH, "w-[38%] lg:w-[30%]")}>
+                {type === "supplier" ? "Business" : "Applicant"}
+              </TableHead>
+              <TableHead className={cn(TH, "hidden lg:table-cell lg:w-[30%]")}>Details</TableHead>
+              <TableHead className={cn(TH, "hidden md:table-cell md:w-[16%] lg:w-[13%]")}>Country</TableHead>
+              <TableHead className={cn(TH, "hidden sm:table-cell sm:w-[18%] lg:w-[12%]")}>Received</TableHead>
+              <TableHead className={cn(TH, "w-[130px]")}>Status</TableHead>
+              <TableHead className="w-10" aria-hidden="true" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading && apps.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={6} className="px-4 py-16 text-center text-muted-foreground">
                   <Loader2 className="mx-auto size-5 animate-spin" />
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
-                  No {PARTNER_TYPE_LABELS[type].toLowerCase()} {status !== "all" || query ? "match these filters" : "yet"}.
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={6} className="px-4 py-16 text-center">
+                  <Inbox className="mx-auto size-8 text-muted-foreground/60" aria-hidden="true" />
+                  <p className="mt-3 text-sm font-medium text-foreground">
+                    {status !== "all" || query
+                      ? `No ${PARTNER_TYPE_LABELS[type].toLowerCase()} match these filters`
+                      : `No ${PARTNER_TYPE_LABELS[type].toLowerCase()} yet`}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {status !== "all" || query
+                      ? "Try clearing the search or status filter."
+                      : "New submissions from imheretravels.com/work-with-us appear here."}
+                  </p>
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((a) => (
-                <TableRow
-                  key={a.id}
-                  className={cn("cursor-pointer", a.status === "new" && "font-medium")}
-                  onClick={() => openDetail(a.id)}
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      openDetail(a.id);
-                    }
-                  }}
-                >
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {displayName(a)}
-                      {a.attachment && <Paperclip className="size-3.5 text-muted-foreground" aria-label="Has attachment" />}
-                    </div>
-                    <div className="text-xs text-muted-foreground md:hidden">{a.email}</div>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">{a.email}</TableCell>
-                  <TableCell className="hidden lg:table-cell">{a.country}</TableCell>
-                  <TableCell className="hidden whitespace-nowrap sm:table-cell">{fmtDate(a.createdAt)}</TableCell>
-                  <TableCell>
-                    <StatusBadge status={a.status} />
-                  </TableCell>
-                </TableRow>
-              ))
+              filtered.map((a) => {
+                const isNew = a.status === "new";
+                const primary = a.organisation || a.name;
+                const secondary = a.organisation ? `${a.name} · ${a.email}` : a.email;
+                return (
+                  <TableRow
+                    key={a.id}
+                    className={cn(
+                      "group cursor-pointer focus-visible:bg-muted/60 focus-visible:outline-none",
+                      selectedId === a.id && "bg-muted/60",
+                    )}
+                    onClick={() => openDetail(a.id)}
+                    tabIndex={0}
+                    aria-label={`Open ${SINGULAR_LABELS[a.type].toLowerCase()} from ${primary}`}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openDetail(a.id);
+                      }
+                    }}
+                  >
+                    <TableCell className={TD}>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="relative shrink-0">
+                          <div className="flex size-9 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground">
+                            {initials(primary)}
+                          </div>
+                          {isNew && (
+                            <span
+                              className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-card bg-[#EF3340]"
+                              aria-label="New"
+                            />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn("truncate text-sm text-foreground", isNew ? "font-semibold" : "font-medium")}>
+                              {primary}
+                            </span>
+                            {a.attachment && (
+                              <Paperclip className="size-3.5 shrink-0 text-muted-foreground" aria-label="Has a document" />
+                            )}
+                          </div>
+                          <p className="truncate text-xs text-muted-foreground">{secondary}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className={cn(TD, "hidden lg:table-cell")}>
+                      <div className="flex flex-wrap gap-1">
+                        {a.summary.slice(0, 2).map((s) => (
+                          <span
+                            key={s}
+                            className="max-w-full truncate rounded-md bg-muted px-2 py-0.5 text-xs text-foreground"
+                            title={s}
+                          >
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                      {a.destinations && (
+                        <p className="mt-1 truncate text-xs text-muted-foreground" title={a.destinations}>
+                          {a.destinations}
+                        </p>
+                      )}
+                    </TableCell>
+                    <TableCell className={cn(TD, "hidden truncate text-sm md:table-cell")}>{a.country || "—"}</TableCell>
+                    <TableCell className={cn(TD, "hidden whitespace-nowrap sm:table-cell")}>
+                      <span className="text-sm text-foreground" title={fmtDate(a.createdAt)}>
+                        {relativeTime(a.createdAt)}
+                      </span>
+                    </TableCell>
+                    <TableCell className={TD}>
+                      <StatusBadge status={a.status} />
+                    </TableCell>
+                    <TableCell className="pr-3 text-right">
+                      <ChevronRight
+                        className="ml-auto size-4 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
+                        aria-hidden="true"
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
+        {!loading && filtered.length > 0 && (
+          <div className="border-t bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
+            Showing {filtered.length} of {counts[type].total} {PARTNER_TYPE_LABELS[type].toLowerCase()}
+          </div>
+        )}
       </div>
 
       <Sheet open={!!selected} onOpenChange={(open) => !open && openDetail(null)}>
@@ -358,7 +459,7 @@ function ApplicationDetail({
       </div>
 
       {app.emails && (app.emails.team === "failed" || app.emails.applicant === "failed") && (
-        <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
+        <p className="rounded-md border border-[#F5DB8F] bg-[#FFF8E5] px-3 py-2 text-sm text-[#7A4F00]">
           Email delivery failed ({app.emails.team === "failed" ? "team notification" : ""}
           {app.emails.team === "failed" && app.emails.applicant === "failed" ? " and " : ""}
           {app.emails.applicant === "failed" ? "applicant confirmation" : ""}). The application itself was saved.

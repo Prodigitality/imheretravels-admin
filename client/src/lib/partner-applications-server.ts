@@ -24,6 +24,33 @@ function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
+/** Raw answer keys (www data/workWithUs.ts) shown as list highlights per type. */
+const SUMMARY_KEYS: Record<string, string[]> = {
+  host: ["describesYou", "following", "hostedBefore"],
+  affiliate: ["contentType", "audienceSize"],
+  supplier: ["serviceType", "groupCapacity"],
+};
+
+function answerText(v: unknown): string {
+  if (Array.isArray(v)) return v.filter((x) => typeof x === "string").join(", ");
+  return typeof v === "string" ? v : "";
+}
+
+function summaryFor(type: string, data: Record<string, unknown> | undefined): { summary: string[]; destinations: string } {
+  const d = data ?? {};
+  const summary = (SUMMARY_KEYS[type] ?? [])
+    .map((k) => {
+      const v = answerText(d[k]);
+      if (!v) return "";
+      if (k === "hostedBefore") return v === "Yes" ? "Has hosted before" : "First-time host";
+      if (k === "following" || k === "audienceSize") return `${v} followers`;
+      return v;
+    })
+    .filter(Boolean);
+  const destinations = answerText(type === "supplier" ? d.destinationsCovered : d.destinations);
+  return { summary, destinations };
+}
+
 /** Firestore doc → JSON-safe PartnerApplication (never exposes the storage path). */
 export function serializePartnerApplication(snap: DocumentSnapshot): PartnerApplication {
   const d = snap.data() ?? {};
@@ -51,6 +78,7 @@ export function serializePartnerApplication(snap: DocumentSnapshot): PartnerAppl
     country: str(d.country),
     organisation: d.organisation ? str(d.organisation) : undefined,
     answerList,
+    ...summaryFor(type, d.data),
     attachment: d.attachment
       ? { name: str(d.attachment.name), size: Number(d.attachment.size) || 0, contentType: str(d.attachment.contentType) }
       : null,

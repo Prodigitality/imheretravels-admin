@@ -48,6 +48,10 @@ export interface PartnerApplication {
   country: string;
   organisation?: string;
   answerList: { label: string; value: string }[];
+  /** Short per-type highlights for the list view (e.g. "Content Creator", "10,000 – 50,000"). */
+  summary: string[];
+  /** Destinations the applicant picked (host/affiliate) or covers (supplier). */
+  destinations: string;
   attachment: { name: string; size: number; contentType: string } | null;
   notes: PartnerApplicationNote[];
   emails: { team?: string; applicant?: string } | null;
