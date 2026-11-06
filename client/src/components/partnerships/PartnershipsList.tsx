@@ -147,8 +147,11 @@ export default function PartnershipsList() {
   }, [apps, selectedId]);
 
   const counts = useMemo(() => {
-    const c = { host: 0, affiliate: 0, supplier: 0 } as Record<PartnerApplicationType, { total: number; fresh: number }>;
-    for (const t of PARTNER_APPLICATION_TYPES) c[t] = { total: 0, fresh: 0 };
+    const c: Record<PartnerApplicationType, { total: number; fresh: number }> = {
+      host: { total: 0, fresh: 0 },
+      affiliate: { total: 0, fresh: 0 },
+      supplier: { total: 0, fresh: 0 },
+    };
     for (const a of apps) {
       c[a.type].total += 1;
       if (a.status === "new") c[a.type].fresh += 1;
