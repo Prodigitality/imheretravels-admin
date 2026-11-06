@@ -137,7 +137,7 @@
                                             ">
                                             <h4 style="color: #c0392b; margin: 0 0 8px 0; font-size: 14px; font-weight: bold;">{{ saleName }}</h4>
                                             <p style="font-size: 13px; color: #333333; margin: 0;">
-                                                You booked at the sale price.{% if saleSavings %}
+                                                You booked at the sale price. {% if saleSavings %}
                                                 {% if isGroupBooking and isMainBooker %}Your party saves{% else %}You save{% endif %}
                                                 <strong>£{{ saleSavings }}</strong> on the regular price.{% endif %}
                                                 </p>
@@ -318,11 +318,17 @@
                                             margin: 25px 0;
                                             border-left: 5px solid #c0392b;
                                             ">
-                                            <h4 style="color: #c0392b; margin: 0 0 8px 0; font-size: 14px; font-weight: bold;">⚠️ Final Payment Deadline</h4>
+                                            <h4 style="color: #c0392b; margin: 0 0 8px 0; font-size: 14px; font-weight: bold;">{% if isLastMinute %}⚠️ Full Payment Due{% else %}⚠️ Final Payment Deadline{% endif %}</h4>
                                             <p style="font-size: 13px; color: #333333; margin: 0;">
+                                                {% if isLastMinute %}
+                                                Your tour departs in less than 2 months, so your full balance of
+                                                <strong>£{{ remainingBalance }}</strong> is due within <strong>48 hours</strong> of booking.
+                                                Any balance still outstanding after that may result in your booking being cancelled.
+                                                {% else %}
                                                 Your full tour balance must be received no later than
                                                 <strong>{{ finalPaymentDeadline }}</strong> — 2 months before your departure date.
                                                 Any outstanding balance after this date may result in your booking being cancelled.
+                                                {% endif %}
                                                 </p>
                                             </div>
                                         <!-- Next Steps -->

@@ -293,6 +293,10 @@ import {
   rollbackMigration as rollbackMigration084,
 } from "./084-payment-plan-reminder-template";
 import {
+  runMigration as runMigration085,
+  rollbackMigration as rollbackMigration085,
+} from "./085-reservation-confirmed-last-minute";
+import {
   runMigration as runMigration078,
   rollbackMigration as rollbackMigration078,
 } from "./078-late-fee-notice-grace-days";
@@ -2442,6 +2446,17 @@ async function main() {
       console.log(`\n🎯 ${rb084.message}`);
       break;
     }
+    case "085":
+    case "dry-run085": {
+      const r085 = await runMigration085(command === "dry-run085" || dryRun);
+      console.log(`\n🎯 ${r085.message}\n📊 Details: ${r085.details.updated} updated, ${r085.details.errors} errors`);
+      break;
+    }
+    case "rollback085": {
+      const rb085 = await rollbackMigration085();
+      console.log(`\n🎯 ${rb085.message}`);
+      break;
+    }
     case "rollback080": {
       const rb080 = await rollbackMigration080();
       console.log(`\n🎯 ${rb080.message}`);
@@ -2572,6 +2587,7 @@ function showHelp() {
   082                Reservation Confirmed: prompt to choose a payment plan (needs functions deploy)
   083                Reservation Confirmed: name the sale, always show the Payment Summary (needs functions deploy)
   084                Add the Payment Plan Reminder email template
+  085                Reservation Confirmed: 48-hour wording for last-minute bookings, sale sentence spacing (needs functions deploy)
   rollback, undo     Rollback the migration 001 (delete created tours)
   rollback002        Rollback the migration 002 (delete created tours)
   rollback003        Rollback the migration 003 (delete created tours)

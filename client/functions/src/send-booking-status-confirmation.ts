@@ -5,6 +5,7 @@ import * as QRCode from "qrcode";
 import GmailApiService from "./gmail-api-service";
 import EmailTemplateService from "./email-template-service";
 import { buildBookingStatusUrl } from "./booking-status-url";
+import { confirmationPlanFields } from "./confirmation-plan";
 
 const db = getFirestore();
 
@@ -307,8 +308,8 @@ export async function sendForBooking(opts: {
     returnDate: formatDateLikeSheets(bookingData.returnDate),
     tourDuration: bookingData.tourDuration || "",
     bookingType: bookingData.bookingType || "",
-    paymentPlan: bookingData.paymentPlan || "",
-    needsPaymentPlan: !bookingData.paymentPlan,
+    // isLastMinute: full balance due within 48 hours, no plan to choose.
+    ...confirmationPlanFields(bookingData),
     saleName: bookingData.saleName || "",
     saleSavings: saleSavings > 0 ? saleSavings.toFixed(2) : "",
     totalCost: totalCost.toFixed(2),
