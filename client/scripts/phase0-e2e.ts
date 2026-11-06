@@ -49,7 +49,9 @@ async function main() {
   if (!pick) throw new Error("No suitable dev tour");
   console.log(`tour: ${pick.name} ${pick.date}`);
 
-  const email = `phase0-e2e+${Date.now()}@example.com`;
+  // Dev sends real "Reservation Confirmed" emails, so use the test inbox
+  // (a plus-address) rather than an address that bounces.
+  const email = `juancarlosjosegan+phase0-e2e-${Date.now()}@gmail.com`;
   try {
     const anon = await post("/api/gmail/send", { to: "x@example.com", subject: "x", body: "x" });
     check(anon.status === 401, `gmail send refuses anonymous calls (${anon.status})`);

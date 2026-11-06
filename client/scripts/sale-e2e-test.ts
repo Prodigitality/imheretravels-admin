@@ -38,7 +38,11 @@ async function main() {
   const dateKey = new Date(toMs(date.startDate)!).toISOString().slice(0, 10);
 
   const before = (await inventoryRef(saleId, saleTour.tourPackageId).get()).get("slots") as { index: number; status: string; salePrice: number }[];
-  const email = `e2e-${Date.now()}@example.com`;
+  // Dev sends real "Reservation Confirmed" emails, so use the test inbox
+  // (plus-addresses) rather than addresses that bounce.
+  const runId = Date.now();
+  const email = `juancarlosjosegan+e2e-${runId}@gmail.com`;
+  const guestEmail = `juancarlosjosegan+e2e-guest-${runId}@gmail.com`;
   const created: { payDoc?: string; holdId?: string; intent?: string; bookings: string[]; slots: number[] } = { bookings: [], slots: [] };
 
   try {
@@ -57,7 +61,7 @@ async function main() {
       booking: {
         type: "Duo Booking",
         groupSize: 2,
-        guestDetails: [{ email: `guest-${email}`, firstName: "E2E", lastName: "Guest", birthdate: "1990-01-01", nationality: "GB", whatsAppNumber: "" }],
+        guestDetails: [{ email: guestEmail, firstName: "E2E", lastName: "Guest", birthdate: "1990-01-01", nationality: "GB", whatsAppNumber: "" }],
         id: "PENDING",
         documentId: "",
       },
