@@ -424,7 +424,19 @@ function ApplicationDetail({
     }
   }
 
-  const replySubject = encodeURIComponent(`Your I'm Here Travels ${app.type === "supplier" ? "supplier enquiry" : `${app.type} application`}`);
+  // Opens a Gmail compose window in a new tab (same account as the header's
+  // "Open Gmail" button). A plain mailto: did nothing without a desktop mail app.
+  const replyUrl = (() => {
+    const firstName = app.name.split(/\s+/)[0] || "";
+    const params = new URLSearchParams({
+      view: "cm",
+      fs: "1",
+      to: app.email,
+      su: `Your I'm Here Travels ${app.type === "supplier" ? "supplier enquiry" : `${app.type} application`}`,
+      body: `Hi ${firstName},\n\n`,
+    });
+    return `https://mail.google.com/mail/u/0/?${params.toString()}`;
+  })();
 
   return (
     <div className="space-y-6">
@@ -449,7 +461,7 @@ function ApplicationDetail({
           </SelectContent>
         </Select>
         <Button variant="outline" asChild>
-          <a href={`mailto:${app.email}?subject=${replySubject}`}>
+          <a href={replyUrl} target="_blank" rel="noopener noreferrer">
             <Mail className="mr-2 size-4" /> Reply
           </a>
         </Button>
