@@ -607,7 +607,7 @@ export async function POST(req: NextRequest) {
         mainBookerName: parentBookingMainBookerName || "Main Booker",
         tourPackageName: paymentData.tour?.packageName || parentBooking.tourName || "",
         amount: Number(paymentData.payment?.amount) || 0,
-        currency: "EUR",
+        currency: "GBP",
       });
     } catch (notificationError) {
       console.error("❌ Failed to create guest notification:", notificationError);

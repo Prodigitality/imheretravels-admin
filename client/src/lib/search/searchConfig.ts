@@ -113,7 +113,7 @@ export const searchCategories: CategoryConfig[] = [
     formatResult: (tour: any): SearchResult => ({
       id: tour.id,
       title: `${tour.tourCode} - ${tour.name}`,
-      subtitle: `${tour.destinations?.[0] ?? "—"} • ${tour.pricing?.currency || "EUR"} ${
+      subtitle: `${tour.destinations?.[0] ?? "—"} • ${tour.pricing?.currency || "GBP"} ${
         tour.pricing?.original || 0
       }`,
       category: "tours",

@@ -31,7 +31,7 @@ import {
   FileText,
   Mail,
   User,
-  Euro,
+  PoundSterling,
   Clock,
   Hash,
   List,
@@ -130,9 +130,9 @@ export default function ConfirmedBookingModal({
 
   const formatCurrency = (amount: any) => {
     const num = safeNumber(amount, 0);
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("en-GB", {
       style: "currency",
-      currency: "EUR",
+      currency: "GBP",
     }).format(num);
   };
 
@@ -827,7 +827,7 @@ export default function ConfirmedBookingModal({
                     className="bg-background shadow-sm border border-border/50 scroll-mt-4"
                   >
                     <div className="p-3 bg-crimson-red/10 border-b border-crimson-red/20 flex items-center gap-2">
-                      <Euro className="h-4 w-4 text-crimson-red" />
+                      <PoundSterling className="h-4 w-4 text-crimson-red" />
                       <h3 className="text-sm font-bold">Payment Summary</h3>
                     </div>
                     <div className="p-0">
@@ -1058,7 +1058,7 @@ export default function ConfirmedBookingModal({
                     Customer: Mail,
                     Tour: Package,
                     PreDeparture: FileText,
-                    Payment: Euro,
+                    Payment: PoundSterling,
                     EmailStatus: Clock,
                   };
                   const Icon = IconMap[section];

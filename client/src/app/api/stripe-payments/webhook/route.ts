@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
                   travelerName: `${result.mainBooker.firstName} ${result.mainBooker.lastName}`,
                   tourPackageName: result.tourPackageName,
                   amount: result.reservationFeeTotal,
-                  currency: "EUR",
+                  currency: "GBP",
                 });
                 console.log("✅ Notification created successfully");
               } catch (notificationError) {

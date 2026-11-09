@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         travelerName: `${result.mainBooker.firstName} ${result.mainBooker.lastName}`,
         tourPackageName: result.tourPackageName,
         amount: result.reservationFeeTotal,
-        currency: "EUR",
+        currency: "GBP",
       });
     } catch (notificationError) {
       console.error("❌ Failed to create notification:", notificationError);
