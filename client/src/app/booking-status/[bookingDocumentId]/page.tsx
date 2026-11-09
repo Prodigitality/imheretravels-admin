@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { format } from "date-fns";
@@ -41,6 +41,7 @@ import {
 import PayNowModal from "@/components/booking-status/PayNowModal";
 import { getLateFeeGraceDays } from "@/lib/late-fee-policy";
 import { getDisplayedBalanceDue } from "@/lib/finance/balance-due";
+import { isPaidInFull } from "@/lib/finance/booking-finance";
 import { timestampsFromWire } from "@/lib/public-booking-view";
 
 
@@ -110,6 +111,7 @@ interface BookingData {
   reasonForCancellation?: string | null;
   cancellationEmailSentDate?: any;
   bookingType: string;
+  isManualBooking?: boolean;
   isMainBooker: boolean;
   enablePaymentReminder: boolean;
   paymentTokens?: {
@@ -137,6 +139,19 @@ interface BookingData {
     size: number;
     uploadedAt: any;
   };
+}
+
+/** "Last Minute Booking", "Invalid Booking", "Standard Booking, P2", … */
+function getBookingPaymentCondition(booking: {
+  reservationDate: any;
+  tourDate: any;
+}): string {
+  if (!booking.tourDate) return "";
+  return getPaymentCondition(
+    booking.tourDate,
+    getEligible2ndOfMonths(booking.reservationDate, booking.tourDate),
+    getDaysBetweenDates(booking.reservationDate, booking.tourDate),
+  );
 }
 
 export default function BookingStatusPage() {
@@ -167,6 +182,12 @@ export default function BookingStatusPage() {
     }>
   >([]);
   const [selectingPlanId, setSelectingPlanId] = useState<string | null>(null);
+  // Manual last-minute bookings have one possible plan, so it is chosen for
+  // the traveller instead of asking them. "failed" falls back to the picker.
+  const [autoSelect, setAutoSelect] = useState<"idle" | "pending" | "failed">(
+    "idle",
+  );
+  const autoSelectAttempted = useRef(false);
   const [confirmPlanOpen, setConfirmPlanOpen] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<{
     id: string;
@@ -330,6 +351,46 @@ export default function BookingStatusPage() {
   useEffect(() => {
     void loadBooking();
   }, [loadBooking]);
+
+  useEffect(() => {
+    if (!booking?.bookingDocumentId || autoSelectAttempted.current) return;
+    const eligible =
+      !booking.paymentPlan &&
+      booking.isManualBooking === true &&
+      !booking.reasonForCancellation &&
+      booking.bookingStatus !== "Cancelled" &&
+      getBookingPaymentCondition(booking) === "Last Minute Booking";
+    if (!eligible) return;
+
+    autoSelectAttempted.current = true;
+    setAutoSelect("pending");
+    (async () => {
+      try {
+        const response = await fetch("/api/stripe-payments/select-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bookingDocumentId: booking.bookingDocumentId,
+            paymentPlanId: "full_payment",
+            paymentPlanDetails: {
+              id: "full_payment",
+              label: "Full Payment Required Within 48hrs",
+            },
+            auto: true,
+          }),
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          throw new Error(data?.error || `HTTP ${response.status}`);
+        }
+        await loadBooking({ quiet: true });
+        setAutoSelect("idle");
+      } catch (err) {
+        console.error("Automatic plan selection failed:", err);
+        setAutoSelect("failed");
+      }
+    })();
+  }, [booking, loadBooking]);
 
   useEffect(() => {
     const onVisible = () => {
@@ -614,23 +675,10 @@ export default function BookingStatusPage() {
   })();
 
   const getAvailablePaymentTerm = () => {
-    const tourDateValue = booking.tourDate;
-    if (!tourDateValue)
+    if (!booking.tourDate)
       return { term: "", isLastMinute: false, isInvalid: false };
 
-    const daysBetween = getDaysBetweenDates(
-      booking.reservationDate,
-      tourDateValue,
-    );
-    const eligible2ndOfMonths = getEligible2ndOfMonths(
-      booking.reservationDate,
-      tourDateValue,
-    );
-    const condition = getPaymentCondition(
-      tourDateValue,
-      eligible2ndOfMonths,
-      daysBetween,
-    );
+    const condition = getBookingPaymentCondition(booking);
 
     if (condition === "Invalid Booking") {
       return { term: "invalid", isLastMinute: false, isInvalid: true };
@@ -850,6 +898,11 @@ export default function BookingStatusPage() {
     (term) => Number(term.penalty || 0) > 0,
   );
   const availablePaymentPlans = getAvailablePaymentPlans();
+  // Settled bookings have nothing to choose a plan for. The public view lacks
+  // per-slot cash and late-fee fields, so require the stored balance to agree.
+  const nothingOwed =
+    remainingBalanceAmount <= 0 &&
+    isPaidInFull(booking as unknown as Record<string, unknown>);
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + " B";
@@ -1039,8 +1092,17 @@ export default function BookingStatusPage() {
 
             <Separator />
 
-            {/* Payment Options (when no payment plan yet) */}
-            {!booking.paymentPlan && availablePaymentPlans.length > 0 && (
+            {!booking.paymentPlan && autoSelect === "pending" && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 sm:px-4 py-3 text-xs sm:text-sm text-gray-700">
+                Setting up your payment schedule…
+              </div>
+            )}
+
+            {/* Payment Options (when no payment plan yet and something is owed) */}
+            {!booking.paymentPlan &&
+              autoSelect !== "pending" &&
+              !nothingOwed &&
+              availablePaymentPlans.length > 0 && (
               <div>
                 <h2 className="text-lg sm:text-xl font-hk-grotesk font-bold text-gray-900 mb-4 sm:mb-5 flex items-center gap-2">
                   <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-crimson-red" />

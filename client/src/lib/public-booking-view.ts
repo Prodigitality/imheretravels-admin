@@ -21,6 +21,14 @@ export function hasRequiredPublicBookingFields(bookingData: Record<string, unkno
   );
 }
 
+/**
+ * Admin-entered bookings have no reservation-form payment behind them; every
+ * booking the form creates is stamped with `sourcePaymentDocId`.
+ */
+export function isManualBooking(bookingData: Record<string, unknown>): boolean {
+  return !bookingData.sourcePaymentDocId;
+}
+
 export interface PublicPreDeparturePack {
   id: string;
   fileName: string;
@@ -109,6 +117,7 @@ export function buildPublicBookingView(
     discountRate: bookingData.discountRate,
     discountType: bookingData.discountType,
     bookingType: bookingData.bookingType,
+    isManualBooking: isManualBooking(bookingData),
     isMainBooker: bookingData.isMainBooker,
     enablePaymentReminder: bookingData.enablePaymentReminder,
     preDeparturePack: preDeparturePack ?? undefined,

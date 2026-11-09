@@ -78,6 +78,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
 import { AddOnsEditor } from "@/components/bookings/AddOnsEditor";
 import { addOnTotals, formatAddOnsSummary } from "@/lib/finance/add-ons";
+import { isPaidInFull } from "@/lib/finance/booking-finance";
 import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
@@ -3640,6 +3641,16 @@ export default function BookingsDataGrid({
                         title: "Cannot Generate Reservation Email",
                         description:
                           "Payment Plan and Payment Method must be empty for reservation emails. Please clear them first.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+
+                    if (isPaidInFull(row as unknown as Record<string, unknown>)) {
+                      toast({
+                        title: "Cannot Generate Reservation Email",
+                        description:
+                          "This booking is already paid in full. The reservation email asks for the balance — send the Booking Confirmed email from Confirmed Bookings instead.",
                         variant: "destructive",
                       });
                       return;

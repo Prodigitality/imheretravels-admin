@@ -196,6 +196,16 @@ export function deriveLifecycleStatus(
   if (reason || status.includes("cancelled")) return "Cancelled";
   if (isOnHoldBooking(booking)) return "On Hold";
 
+  if (isPaidInFull(booking)) return hasTourEnded(booking, today) ? "Completed" : "Confirmed";
+  return hasTourEnded(booking, today) ? "Elapsed" : "Pending";
+}
+
+/**
+ * What the traveller still owes: tour cost + late fees + add-ons − cash received.
+ * Cash is per-slot when present, else the asked amount on each dated term.
+ * Ignores cancellation / on-hold state — callers decide what that means.
+ */
+export function getOutstandingBalance(booking: RawBooking): number {
   const num = (v: unknown) => Number(v) || 0;
   const paid = (amount: unknown, amountPaid: unknown, date: unknown): number => {
     if (!toDate(date)) return 0;
@@ -217,12 +227,13 @@ export function deriveLifecycleStatus(
       0
     );
   const addOns = addOnTotals(booking.addOns);
-  const owed =
-    Math.round((cost + num(booking.totalLateFees) + addOns.total - cash - addOns.paid) * 100) / 100;
-  const settled = cost > 0 && owed <= 0.009;
+  return Math.round((cost + num(booking.totalLateFees) + addOns.total - cash - addOns.paid) * 100) / 100;
+}
 
-  if (settled) return hasTourEnded(booking, today) ? "Completed" : "Confirmed";
-  return hasTourEnded(booking, today) ? "Elapsed" : "Pending";
+/** True when the booking has a price and nothing is left to pay. */
+export function isPaidInFull(booking: RawBooking): boolean {
+  const cost = Number(booking.discountedTourCost) || Number(booking.originalTourCost) || 0;
+  return cost > 0 && getOutstandingBalance(booking) <= 0.009;
 }
 
 /** True once the tour's return date (fallback: tour date) is before today. */

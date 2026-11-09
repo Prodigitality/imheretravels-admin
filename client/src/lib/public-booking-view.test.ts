@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPublicBookingView,
   hasRequiredPublicBookingFields,
+  isManualBooking,
   timestampsFromWire,
   timestampsToWire,
 } from "./public-booking-view";
@@ -79,5 +80,21 @@ describe("public booking view", () => {
     expect(back.addOns[0]).toEqual({ paidAt: { s: 20, n: 0 }, name: "Bike" });
     expect(back.p1DatePaid).toBeNull();
     expect(back.note).toBe("x");
+  });
+});
+
+describe("isManualBooking", () => {
+  it("is false for reservation-form bookings (stamped with their payment)", () => {
+    expect(isManualBooking({ sourcePaymentDocId: "pay_123" })).toBe(false);
+  });
+
+  it("is true for admin-entered bookings", () => {
+    expect(isManualBooking({ bookingId: "SB-BZT-BJ-20261227-AK010" })).toBe(true);
+  });
+
+  it("is exposed on the public view as a boolean only", () => {
+    const view = buildPublicBookingView("doc1", { sourcePaymentDocId: "pay_123" }, null);
+    expect(view.isManualBooking).toBe(false);
+    expect(view).not.toHaveProperty("sourcePaymentDocId");
   });
 });

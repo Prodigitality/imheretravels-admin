@@ -445,9 +445,34 @@ export const onPaymentComplete = onDocumentUpdated(
           preDeparturePack.data.fileName,
         );
       } else {
-        logger.info(
+        logger.warn(
           "No pre-departure pack found for this tour package - skipping confirmed booking creation",
+          { tourPackageName: afterData.tourPackageName, bookingId },
         );
+        // Without this the traveller silently never gets a Booking Confirmed
+        // email; tell the admins so they can link a pack and send it by hand.
+        try {
+          const travelerName = afterData.fullName || "Customer";
+          const tourPackageName = afterData.tourPackageName || "Tour";
+          await db.collection("notifications").add({
+            type: "pre_departure_pack",
+            title: "Booking Confirmed email NOT sent",
+            body: `${travelerName} (${afterData.bookingId || bookingId}) is paid in full, but no pre-departure pack is linked to "${tourPackageName}". Link a pack to this tour, then add the booking under Confirmed Bookings and send the email.`,
+            data: {
+              bookingId: afterData.bookingId || bookingId,
+              bookingDocumentId: bookingId,
+              travelerName,
+              tourPackageName,
+              recipientEmail: afterData.emailAddress || "",
+            },
+            targetType: "global",
+            targetUserIds: [],
+            createdAt: new Date(),
+            readBy: {},
+          });
+        } catch (notificationError) {
+          logger.warn("Failed to create notification:", notificationError);
+        }
         return;
       }
 

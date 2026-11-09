@@ -1,5 +1,6 @@
 "use client";
 
+import { isPaidInFull } from "@/lib/finance/booking-finance";
 import React, {
   useState,
   useEffect,
@@ -2633,6 +2634,16 @@ export default function EditBookingModal({
                           title: "Cannot Generate Reservation Email",
                           description:
                             "Payment Plan and Payment Method must be empty for reservation emails. Please clear them first.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+
+                      if (isPaidInFull(formData as Record<string, unknown>)) {
+                        toast({
+                          title: "Cannot Generate Reservation Email",
+                          description:
+                            "This booking is already paid in full. The reservation email asks for the balance — send the Booking Confirmed email from Confirmed Bookings instead.",
                           variant: "destructive",
                         });
                         return;

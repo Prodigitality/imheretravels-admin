@@ -6,6 +6,8 @@ import {
   monthlyNetRevenue,
   getCancellationDate,
   isCancelledBooking,
+  isPaidInFull,
+  getOutstandingBalance,
 } from "./booking-finance";
 
 const TODAY = new Date(2026, 8, 8); // 8 Sep 2026 (local)
@@ -126,5 +128,37 @@ describe("booking-finance", () => {
       TODAY
     );
     expect(sumEvents(events).grossRevenue).toBe(700);
+  });
+});
+
+describe("isPaidInFull / getOutstandingBalance", () => {
+  // Shape of the admin-entered last-minute bookings SB-BZT-BJ-20261227-*
+  // (Nov 2026): no paymentPlan, full payment recorded by hand.
+  const manualPaid = {
+    originalTourCost: 1699,
+    discountedTourCost: "",
+    reservationFee: 250,
+    fullPaymentAmount: 1449,
+    fullPaymentDatePaid: new Date(2026, 10, 6),
+    p1Amount: "",
+  };
+
+  it("treats a hand-recorded full payment as settled", () => {
+    expect(getOutstandingBalance(manualPaid)).toBe(0);
+    expect(isPaidInFull(manualPaid)).toBe(true);
+  });
+
+  it("is not settled while the full payment is undated", () => {
+    const unpaid = { ...manualPaid, fullPaymentDatePaid: "" };
+    expect(getOutstandingBalance(unpaid)).toBe(1449);
+    expect(isPaidInFull(unpaid)).toBe(false);
+  });
+
+  it("counts outstanding late fees", () => {
+    expect(isPaidInFull({ ...manualPaid, totalLateFees: 50 })).toBe(false);
+  });
+
+  it("is never settled without a price", () => {
+    expect(isPaidInFull({ reservationFee: 250 })).toBe(false);
   });
 });

@@ -9,6 +9,8 @@ import {
   getPaymentCondition,
   type PaymentPlanUpdateInput,
 } from "@/lib/booking-calculations";
+import { isPaidInFull, toDate } from "@/lib/finance/booking-finance";
+import { isManualBooking } from "@/lib/public-booking-view";
 
 /**
  * Extract payment plan type from payment term name
@@ -25,7 +27,7 @@ function extractPaymentPlanType(name: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { bookingDocumentId, paymentPlanId, paymentPlanDetails } =
+    const { bookingDocumentId, paymentPlanId, paymentPlanDetails, auto } =
       await req.json();
 
     // Validate required fields
@@ -122,6 +124,50 @@ export async function POST(req: NextRequest) {
       computedPaymentCondition,
       !!bookingData.reasonForCancellation,
     );
+    const isLastMinute = computedPaymentCondition === "Last Minute Booking";
+
+    // Automatic selection (booking-status page): only for an admin-entered,
+    // live booking whose sole option is the last-minute full payment.
+    if (auto) {
+      const eligible =
+        paymentPlanString === "Full Payment" &&
+        isManualBooking(bookingData) &&
+        isLastMinute &&
+        !bookingData.reasonForCancellation;
+      if (!eligible) {
+        return NextResponse.json(
+          { error: "This booking is not eligible for automatic plan selection" },
+          { status: 400 },
+        );
+      }
+    }
+
+    // Already settled (e.g. admin recorded the payment by hand): record the
+    // plan without recomputing it — a recompute would reopen the balance,
+    // reset paidTerms and switch payment reminders on.
+    if (isPaidInFull(bookingData)) {
+      if (paymentPlanString !== "Full Payment" || !toDate(bookingData.fullPaymentDatePaid)) {
+        return NextResponse.json(
+          { error: "This booking is already paid in full" },
+          { status: 409 },
+        );
+      }
+      await updateDoc(bookingDocRef, {
+        paymentPlan: "Full Payment",
+        selectedPlanAt: serverTimestamp(),
+        ...(auto && { planAutoSelected: true }),
+        updatedAt: serverTimestamp(),
+      });
+      console.log(
+        `✅ Booking ${bookingDocumentId} already paid in full — recorded Full Payment plan only`,
+      );
+      return NextResponse.json({
+        success: true,
+        bookingDocumentId,
+        paymentPlan: "Full Payment",
+        message: "Payment plan recorded",
+      });
+    }
 
     // Prepare input for payment plan calculation
     const updateInput: PaymentPlanUpdateInput = {
@@ -174,6 +220,7 @@ export async function POST(req: NextRequest) {
       paidTerms: 0,
       enablePaymentReminder: true,
       selectedPlanAt: serverTimestamp(),
+      ...(auto && { planAutoSelected: true }),
       updatedAt: serverTimestamp(),
       ...(!bookingData.paymentMethod && { paymentMethod: "Stripe" }),
     });
@@ -189,9 +236,9 @@ export async function POST(req: NextRequest) {
         `${bookingData.firstName || ""} ${bookingData.lastName || ""}`.trim();
       const tourPackageName = bookingData.tourPackageName || "Tour";
       const paymentPlanLabel =
-        paymentPlanDetails?.label ||
-        paymentUpdate.paymentPlan ||
-        "Payment Plan";
+        (paymentPlanDetails?.label ||
+          paymentUpdate.paymentPlan ||
+          "Payment Plan") + (auto ? " (auto-selected, only option)" : "");
 
       await createNotification({
         type: "payment_plan_selected",
