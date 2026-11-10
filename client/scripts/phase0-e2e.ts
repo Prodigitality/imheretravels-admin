@@ -105,6 +105,17 @@ async function main() {
     const unknown = await get(`/api/public/booking/not-a-real-token-${Date.now()}`);
     check(unknown.status === 404, `unknown token 404 (${unknown.status})`);
 
+    // select-plan: knowing the booking id is not enough.
+    const planBody = { bookingDocumentId: created.bookings[0], paymentPlanId: "full_payment" };
+    const bare = await post("/api/stripe-payments/select-plan", planBody);
+    check(bare.status === 403, `select-plan refuses a bare booking id (${bare.status})`);
+    const foreign = await post("/api/stripe-payments/select-plan", { ...planBody, paymentDocId: `not-this-${Date.now()}` });
+    check(foreign.status === 403, `select-plan refuses another reservation (${foreign.status})`);
+    const owner = await post("/api/stripe-payments/select-plan", { ...planBody, paymentDocId: created.payDoc });
+    check(owner.status !== 403, `select-plan accepts the owning reservation (${owner.status} ${owner.json.error ?? ""})`);
+    const viaToken = await post("/api/stripe-payments/select-plan", { ...planBody, access_token: bdoc.access_token });
+    check(viaToken.status !== 403, `select-plan accepts the booking's access token (${viaToken.status} ${viaToken.json.error ?? ""})`);
+
     const late = await post("/api/stripe-payments/update-payment", { paymentDocId: created.payDoc, amountGBP: 1 });
     check(late.status >= 400, `update-payment refused once paid (${late.status})`);
     const del = await fetch(`${BASE}/api/public/reservations/${created.payDoc}`, { method: "DELETE" });
