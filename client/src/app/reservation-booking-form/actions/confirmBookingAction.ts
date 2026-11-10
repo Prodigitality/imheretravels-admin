@@ -115,6 +115,8 @@ export const runConfirmBookingAction = async ({
         },
         body: JSON.stringify({
           bookingDocumentId,
+          // The reservation that created this booking; the route checks it lists the booking.
+          paymentDocId,
           paymentPlanId,
           paymentPlanDetails: selectedPlan || null,
         }),

@@ -11,6 +11,7 @@ import {
 } from "@/lib/booking-calculations";
 import { isPaidInFull, toDate } from "@/lib/finance/booking-finance";
 import { isManualBooking } from "@/lib/public-booking-view";
+import { resolveBookingDocumentIds } from "@/app/reservation-booking-form/utils/step3PaymentPlan";
 
 /**
  * Extract payment plan type from payment term name
@@ -25,10 +26,39 @@ function extractPaymentPlanType(name: string): string {
   return name.trim();
 }
 
+/**
+ * The caller must prove they hold this booking, not just know its id:
+ * - the booking-status page sends the booking's access_token (its URL), or
+ * - the reservation form sends its reservation (stripePayments doc), which
+ *   must list this booking among the bookings it created.
+ */
+async function callerHoldsBooking(
+  bookingDocumentId: string,
+  bookingData: Record<string, unknown>,
+  accessToken: unknown,
+  paymentDocId: unknown,
+): Promise<boolean> {
+  if (typeof accessToken === "string" && accessToken && bookingData.access_token === accessToken) {
+    return true;
+  }
+  if (typeof paymentDocId === "string" && paymentDocId && !paymentDocId.includes("/")) {
+    const paymentSnap = await getDoc(doc(db, "stripePayments", paymentDocId));
+    if (!paymentSnap.exists()) return false;
+    return resolveBookingDocumentIds(paymentSnap.data()).includes(bookingDocumentId);
+  }
+  return false;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { bookingDocumentId, paymentPlanId, paymentPlanDetails, auto } =
-      await req.json();
+    const {
+      bookingDocumentId,
+      paymentPlanId,
+      paymentPlanDetails,
+      auto,
+      access_token,
+      paymentDocId,
+    } = await req.json();
 
     // Validate required fields
     if (!bookingDocumentId) {
@@ -63,6 +93,13 @@ export async function POST(req: NextRequest) {
     }
 
     const bookingData = bookingDocSnap.data();
+
+    if (!(await callerHoldsBooking(bookingDocumentId, bookingData, access_token, paymentDocId))) {
+      return NextResponse.json(
+        { error: "Not allowed to choose a plan for this booking" },
+        { status: 403 },
+      );
+    }
 
     // Check if payment plan already selected
     if (bookingData.paymentPlan) {

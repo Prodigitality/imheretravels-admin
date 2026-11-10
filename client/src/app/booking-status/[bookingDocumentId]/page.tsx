@@ -371,6 +371,8 @@ export default function BookingStatusPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             bookingDocumentId: booking.bookingDocumentId,
+            // The URL token proves this visitor holds the booking.
+            access_token: bookingDocumentId,
             paymentPlanId: "full_payment",
             paymentPlanDetails: {
               id: "full_payment",
@@ -535,6 +537,8 @@ export default function BookingStatusPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingDocumentId: booking.bookingDocumentId,
+          // The URL token proves this visitor holds the booking.
+          access_token: bookingDocumentId,
           paymentPlanId: plan.id,
           paymentPlanDetails: {
             id: plan.id,

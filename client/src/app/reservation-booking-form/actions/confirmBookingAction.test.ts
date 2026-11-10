@@ -169,6 +169,8 @@ describe("runConfirmBookingAction", () => {
   it("sets a plan for the main booker only, leaving guests to choose theirs", async () => {
     const plans = await confirmParty(false);
     expect(plans.map((p) => [p.bookingDocumentId, p.paymentPlanId])).toEqual([["main", "p2"]]);
+    // select-plan only accepts a booking its reservation created.
+    expect(plans.every((p) => p.paymentDocId === "doc-1")).toBe(true);
   });
 
   it("puts everyone on full payment for a last-minute booking", async () => {
