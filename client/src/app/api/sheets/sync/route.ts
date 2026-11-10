@@ -1,3 +1,4 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
 import { googleSheetsServerService } from "@/lib/google-sheets/google-sheets-server-service";
 import Papa from "papaparse";
@@ -8,6 +9,11 @@ import { bookingVersionHistoryService } from "@/services/booking-version-history
 import { db } from "@/lib/firebase";
 
 export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const body = await request.json();
     const { spreadsheetId, sheetName } = body;

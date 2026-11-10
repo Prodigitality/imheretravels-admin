@@ -1,3 +1,4 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateWww } from "@/lib/revalidate-www";
 
@@ -9,6 +10,11 @@ import { revalidateWww } from "@/lib/revalidate-www";
  * Body: { all?: boolean; paths?: string[] }
  */
 export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   let body: { all?: boolean; paths?: string[] } = { all: true };
   try {
     body = (await request.json()) as typeof body;

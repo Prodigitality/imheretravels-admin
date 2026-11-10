@@ -1,7 +1,13 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, getDoc, addDoc, collection, Timestamp } from "firebase/firestore";
-import { useAuthStore } from "@/store/auth-store";
+import {
+  db,
+  doc,
+  getDoc,
+  addDoc,
+  collection,
+  Timestamp,
+} from "@/lib/server-firestore";
 
 const COLLECTION_NAME = "emailTemplates";
 
@@ -12,10 +18,14 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { id } = await params;
-    const { user } = useAuthStore.getState();
-    const userId = user?.uid || "anonymous";
+    const userId = staff.uid;
 
     // Get original template
     const docRef = doc(db, COLLECTION_NAME, id);

@@ -1,3 +1,4 @@
+import { staffFetch } from "@/lib/staff-fetch";
 import type {
   PaymentTermConfiguration,
   PaymentTermFormData,
@@ -20,7 +21,7 @@ export class PaymentTermsService {
    */
   static async getAllPaymentTerms(): Promise<PaymentTermConfiguration[]> {
     try {
-      const response = await fetch(API_BASE);
+      const response = await staffFetch(API_BASE);
       const result = await response.json();
 
       if (!response.ok || !result.success) {
@@ -39,7 +40,7 @@ export class PaymentTermsService {
    */
   static async getActivePaymentTerms(): Promise<PaymentTermConfiguration[]> {
     try {
-      const response = await fetch(`${API_BASE}/active`);
+      const response = await staffFetch(`${API_BASE}/active`);
       const result = await response.json();
 
       if (!response.ok || !result.success) {
@@ -65,7 +66,7 @@ export class PaymentTermsService {
     }[]
   > {
     try {
-      const response = await fetch(`${API_BASE}/active`);
+      const response = await staffFetch(`${API_BASE}/active`);
       const result = await response.json();
 
       if (!response.ok || !result.success) {
@@ -88,7 +89,7 @@ export class PaymentTermsService {
     id: string
   ): Promise<PaymentTermConfiguration | null> {
     try {
-      const response = await fetch(`${API_BASE}/${id}`);
+      const response = await staffFetch(`${API_BASE}/${id}`);
 
       if (response.status === 404) {
         return null;
@@ -115,7 +116,7 @@ export class PaymentTermsService {
     userId: string
   ): Promise<string> {
     try {
-      const response = await fetch(API_BASE, {
+      const response = await staffFetch(API_BASE, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -144,7 +145,7 @@ export class PaymentTermsService {
     try {
       const { id, ...updateData } = data;
 
-      const response = await fetch(`${API_BASE}/${id}`, {
+      const response = await staffFetch(`${API_BASE}/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updateData),
@@ -166,7 +167,7 @@ export class PaymentTermsService {
    */
   static async deletePaymentTerm(id: string): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE}/${id}`, {
+      const response = await staffFetch(`${API_BASE}/${id}`, {
         method: "DELETE",
       });
 
@@ -190,7 +191,7 @@ export class PaymentTermsService {
     userId: string
   ): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE}/${id}/toggle-status`, {
+      const response = await staffFetch(`${API_BASE}/${id}/toggle-status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive }),
@@ -217,7 +218,7 @@ export class PaymentTermsService {
     userId: string
   ): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE}/sort-order`, {
+      const response = await staffFetch(`${API_BASE}/sort-order`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updates }),
@@ -442,7 +443,7 @@ export class PaymentTermsInitializer {
    */
   static async initializeDefaultPaymentTerms(userId: string): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE}/initialize-defaults`, {
+      const response = await staffFetch(`${API_BASE}/initialize-defaults`, {
         method: "POST",
       });
 

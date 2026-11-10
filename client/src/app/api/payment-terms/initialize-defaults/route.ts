@@ -1,7 +1,12 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, addDoc, Timestamp } from "firebase/firestore";
-import { useAuthStore } from "@/store/auth-store";
+import {
+  db,
+  collection,
+  getDocs,
+  addDoc,
+  Timestamp,
+} from "@/lib/server-firestore";
 import { DEFAULT_PAYMENT_TERMS } from "@/types/payment-terms";
 
 const COLLECTION_NAME = "paymentTerms";
@@ -36,9 +41,13 @@ function sanitizeData(obj: any): any {
  * POST /api/payment-terms/initialize-defaults - Initialize default payment terms
  */
 export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
-    const { user } = useAuthStore.getState();
-    const userId = user?.uid || "system";
+    const userId = staff.uid;
 
     console.log("Initializing default payment terms...");
 

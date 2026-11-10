@@ -1,3 +1,4 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
 import convert from "heic-convert";
 
@@ -12,6 +13,11 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const inputBuffer = Buffer.from(await request.arrayBuffer());
     if (inputBuffer.byteLength === 0) {

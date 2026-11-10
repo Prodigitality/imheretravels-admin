@@ -1,6 +1,12 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, addDoc, Timestamp } from "firebase/firestore";
+import {
+  db,
+  collection,
+  getDocs,
+  addDoc,
+  Timestamp,
+} from "@/lib/server-firestore";
 import { uploadFile, STORAGE_BUCKET } from "@/lib/server-storage";
 import { requireAdmin } from "@/lib/require-admin";
 import type { Incident, IncidentAttachment } from "@/types/incidents";
@@ -61,7 +67,12 @@ async function nextIncidentCode(): Promise<string> {
  * GET /api/incidents - list all incidents (read: any authenticated user via
  * the client SDK; this route is a convenience for server reads).
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const snap = await getDocs(collection(db, COLLECTION));
     const incidents = snap.docs.map((d) => ({

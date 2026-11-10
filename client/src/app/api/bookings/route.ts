@@ -1,3 +1,4 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase";
 import {
@@ -35,7 +36,12 @@ function generateAccessToken(): string {
 /**
  * GET /api/bookings - Get all bookings
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const querySnapshot = await getDocs(
       query(collection(db, COLLECTION_NAME), orderBy("createdAt", "desc"))
@@ -64,6 +70,11 @@ export async function GET() {
  * POST /api/bookings - Create a new booking
  */
 export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const bookingData = normalizeBookingEmailFields(await request.json());
 
@@ -113,7 +124,12 @@ export async function POST(request: NextRequest) {
 /**
  * DELETE /api/bookings - Delete all bookings (admin operation)
  */
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const bookingsCollection = collection(db, COLLECTION_NAME);
     const snapshot = await getDocs(bookingsCollection);

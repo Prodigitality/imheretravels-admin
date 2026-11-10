@@ -1,6 +1,12 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import {
+  db,
+  collection,
+  getDocs,
+  query,
+  orderBy,
+} from "@/lib/server-firestore";
 import type { PreDeparturePack } from "@/types/pre-departure-pack";
 
 const COLLECTION_NAME = "preDeparturePack";
@@ -12,6 +18,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ tourPackageName: string }> },
 ) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { tourPackageName } = await params;
     const decodedName = decodeURIComponent(tourPackageName);

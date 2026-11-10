@@ -1,3 +1,4 @@
+import { staffFetch } from "@/lib/staff-fetch";
 import { db } from "@/lib/firebase";
 import {
   doc,
@@ -82,7 +83,7 @@ class BookingServiceImpl implements BookingService {
       Object.keys(updates)
     );
     try {
-      const response = await fetch(`/api/bookings/${bookingId}`, {
+      const response = await staffFetch(`/api/bookings/${bookingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
@@ -107,7 +108,7 @@ class BookingServiceImpl implements BookingService {
 
   async deleteBooking(bookingId: string): Promise<void> {
     try {
-      const response = await fetch(`/api/bookings/${bookingId}`, {
+      const response = await staffFetch(`/api/bookings/${bookingId}`, {
         method: "DELETE",
       });
 
@@ -130,7 +131,7 @@ class BookingServiceImpl implements BookingService {
 
   async deleteAllBookings(): Promise<void> {
     try {
-      const response = await fetch("/api/bookings", {
+      const response = await staffFetch("/api/bookings", {
         method: "DELETE",
       });
 
@@ -153,7 +154,7 @@ class BookingServiceImpl implements BookingService {
 
   async createBooking(bookingData: Record<string, any>): Promise<string> {
     try {
-      const response = await fetch("/api/bookings", {
+      const response = await staffFetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bookingData),
@@ -179,7 +180,7 @@ class BookingServiceImpl implements BookingService {
 
   async getBooking(bookingId: string): Promise<DocumentData | null> {
     try {
-      const response = await fetch(`/api/bookings/${bookingId}`);
+      const response = await staffFetch(`/api/bookings/${bookingId}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -206,7 +207,7 @@ class BookingServiceImpl implements BookingService {
 
   async getAllBookings(): Promise<DocumentData[]> {
     try {
-      const response = await fetch("/api/bookings");
+      const response = await staffFetch("/api/bookings");
       const data = await response.json();
 
       if (!response.ok || !data.success) {
@@ -313,7 +314,7 @@ class BookingServiceImpl implements BookingService {
       value
     );
     try {
-      const response = await fetch(`/api/bookings/${bookingId}/field`, {
+      const response = await staffFetch(`/api/bookings/${bookingId}/field`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fieldPath, value }),
@@ -341,7 +342,7 @@ class BookingServiceImpl implements BookingService {
     bookingData: Record<string, any>
   ): Promise<void> {
     try {
-      const response = await fetch(
+      const response = await staffFetch(
         `/api/bookings/${bookingId}/create-or-update`,
         {
           method: "POST",
@@ -373,7 +374,7 @@ class BookingServiceImpl implements BookingService {
 
   async getNextRowNumber(): Promise<number> {
     try {
-      const response = await fetch("/api/bookings/next-row");
+      const response = await staffFetch("/api/bookings/next-row");
       const data = await response.json();
 
       if (!response.ok || !data.success) {
@@ -414,7 +415,7 @@ class BookingServiceImpl implements BookingService {
 
   async clearBookingFields(bookingId: string): Promise<void> {
     try {
-      const response = await fetch(`/api/bookings/${bookingId}/clear`, {
+      const response = await staffFetch(`/api/bookings/${bookingId}/clear`, {
         method: "POST",
       });
 
@@ -447,7 +448,7 @@ class BookingServiceImpl implements BookingService {
         `🗑️ Calling API to delete booking ${bookingId} with row shift...`
       );
 
-      const response = await fetch(`/api/bookings/${bookingId}/with-shift`, {
+      const response = await staffFetch(`/api/bookings/${bookingId}/with-shift`, {
         method: "DELETE",
       });
 

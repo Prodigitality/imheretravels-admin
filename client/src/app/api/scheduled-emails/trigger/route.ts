@@ -1,5 +1,7 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
 import {
+  db,
   collection,
   getDocs,
   doc,
@@ -9,8 +11,7 @@ import {
   where,
   limit,
   Timestamp,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+} from "@/lib/server-firestore";
 import GmailApiService from "@/lib/gmail/gmail-api-service";
 import EmailTemplateService from "@/services/email-template-service";
 
@@ -258,6 +259,11 @@ async function rerenderEmailTemplate(
 }
 
 export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     console.log("Manual trigger for scheduled email processing");
 

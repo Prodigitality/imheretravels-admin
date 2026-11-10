@@ -1,6 +1,10 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, writeBatch } from "firebase/firestore";
+import {
+  db,
+  doc,
+  writeBatch,
+} from "@/lib/server-firestore";
 import { revalidateWww } from "@/lib/revalidate-www";
 
 const TOURS_COLLECTION = "tourPackages";
@@ -9,6 +13,11 @@ const TOURS_COLLECTION = "tourPackages";
  * POST /api/tours/batch/delete - Batch delete tours
  */
 export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { ids } = await request.json();
 

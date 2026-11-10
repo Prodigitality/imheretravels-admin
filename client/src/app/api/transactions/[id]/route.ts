@@ -1,6 +1,10 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, deleteDoc } from "firebase/firestore";
+import {
+  db,
+  doc,
+  deleteDoc,
+} from "@/lib/server-firestore";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +12,11 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const staff = await requireStaff(req.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { id } = await params;
     

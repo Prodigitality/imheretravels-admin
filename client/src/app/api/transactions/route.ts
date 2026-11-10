@@ -1,10 +1,21 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { collection, query, orderBy, getDocs } from "firebase/firestore";
+import {
+  db,
+  collection,
+  query,
+  orderBy,
+  getDocs,
+} from "@/lib/server-firestore";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const staff = await requireStaff(req.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const paymentsRef = collection(db, "stripePayments");
     const q = query(paymentsRef, orderBy("timestamps.createdAt", "desc"));

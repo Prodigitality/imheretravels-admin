@@ -1,4 +1,5 @@
 "use client";
+import { staffFetch } from "@/lib/staff-fetch";
 
 import { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -94,7 +95,7 @@ export function EmailAvatar({
         setIsLoading(true);
         setError(false);
 
-        const response = await fetch(
+        const response = await staffFetch(
           `/api/avatars?email=${encodeURIComponent(cleanEmail)}`
         );
         const result = await response.json();
@@ -177,7 +178,7 @@ export function BatchEmailAvatar({
       try {
         setIsLoading(true);
 
-        const response = await fetch("/api/avatars", {
+        const response = await staffFetch("/api/avatars", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -222,7 +223,7 @@ export function useEmailAvatars(emails: string[]) {
       try {
         setIsLoading(true);
 
-        const response = await fetch("/api/avatars", {
+        const response = await staffFetch("/api/avatars", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

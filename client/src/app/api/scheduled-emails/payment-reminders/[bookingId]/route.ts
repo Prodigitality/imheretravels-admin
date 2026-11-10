@@ -1,6 +1,7 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
 import {
+  db,
   collection,
   query,
   where,
@@ -10,7 +11,7 @@ import {
   updateDoc,
   writeBatch,
   Timestamp,
-} from "firebase/firestore";
+} from "@/lib/server-firestore";
 
 const TERM_REGEX = /\bP([1-4])\b/i;
 
@@ -106,6 +107,11 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ bookingId: string }> },
 ) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { bookingId } = await params;
 
@@ -190,6 +196,11 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ bookingId: string }> },
 ) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { bookingId } = await params;
 

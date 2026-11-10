@@ -1,6 +1,7 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
 import {
+  db,
   collection,
   getDocs,
   addDoc,
@@ -8,11 +9,8 @@ import {
   where,
   orderBy,
   limit,
-  startAfter,
   Timestamp,
-  DocumentSnapshot,
-} from "firebase/firestore";
-import { verifyRequestUserId } from "@/lib/firebase-admin-auth";
+} from "@/lib/server-firestore";
 import { revalidateWww } from "@/lib/revalidate-www";
 import { manilaLocalToDate } from "@/lib/manila-time";
 
@@ -67,17 +65,13 @@ function convertTravelDatesToTimestamps(travelDates: any[]): any[] {
  * POST /api/tours - Create a new tour
  */
 export async function POST(request: NextRequest) {
-  try {
-    const currentUserId = await verifyRequestUserId(
-      request.headers.get("authorization"),
-    );
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
 
-    if (!currentUserId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 },
-      );
-    }
+  try {
+    const currentUserId = staff.uid;
 
     const tourData = await request.json();
 
@@ -169,6 +163,11 @@ export async function POST(request: NextRequest) {
  * GET /api/tours - Get all tours with optional filters, sorting, and pagination
  */
 export async function GET(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
 

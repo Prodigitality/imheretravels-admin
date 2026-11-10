@@ -1,3 +1,4 @@
+import { staffFetch } from "@/lib/staff-fetch";
 /**
  * Client-side service for the `tourReviews` collection (admin dashboard).
  *
@@ -107,7 +108,7 @@ export function subscribeToReviews(
 
 async function pingRevalidate(paths?: string[]): Promise<void> {
   try {
-    await fetch("/api/reviews/revalidate", {
+    await staffFetch("/api/reviews/revalidate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(paths?.length ? { paths } : { all: true }),

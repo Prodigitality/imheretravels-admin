@@ -1,6 +1,11 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, writeBatch, Timestamp } from "firebase/firestore";
+import {
+  db,
+  doc,
+  writeBatch,
+  Timestamp,
+} from "@/lib/server-firestore";
 import { revalidateWww } from "@/lib/revalidate-www";
 
 const TOURS_COLLECTION = "tourPackages";
@@ -50,6 +55,11 @@ function convertTravelDatesToTimestamps(travelDates: any[]): any[] {
  * POST /api/tours/batch/update - Batch update tours
  */
 export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { updates } = await request.json();
 

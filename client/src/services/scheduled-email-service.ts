@@ -1,3 +1,4 @@
+import { staffFetch } from "@/lib/staff-fetch";
 // Types for scheduled emails
 export interface ScheduledEmailData {
   to: string;
@@ -68,7 +69,7 @@ export class ScheduledEmailService {
     };
 
     // Call Next.js API route instead of Firebase Functions
-    const response = await fetch("/api/scheduled-emails", {
+    const response = await staffFetch("/api/scheduled-emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -94,7 +95,7 @@ export class ScheduledEmailService {
    */
   static async cancelScheduledEmail(scheduledEmailId: string) {
     // Call Next.js API route instead of Firebase Functions
-    const response = await fetch(`/api/scheduled-emails/${scheduledEmailId}`, {
+    const response = await staffFetch(`/api/scheduled-emails/${scheduledEmailId}`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
@@ -118,7 +119,7 @@ export class ScheduledEmailService {
    * Resend a sent email
    */
   static async resendSentEmail(scheduledEmailId: string) {
-    const response = await fetch(
+    const response = await staffFetch(
       `/api/scheduled-emails/${scheduledEmailId}/resend`,
       {
         method: "POST",
@@ -146,7 +147,7 @@ export class ScheduledEmailService {
    */
   static async skipScheduledEmail(scheduledEmailId: string) {
     // Call Next.js API route
-    const response = await fetch(
+    const response = await staffFetch(
       `/api/scheduled-emails/${scheduledEmailId}/skip`,
       {
         method: "POST",
@@ -174,7 +175,7 @@ export class ScheduledEmailService {
    */
   static async unskipScheduledEmail(scheduledEmailId: string) {
     // Call Next.js API route
-    const response = await fetch(
+    const response = await staffFetch(
       `/api/scheduled-emails/${scheduledEmailId}/unskip`,
       {
         method: "POST",
@@ -216,7 +217,7 @@ export class ScheduledEmailService {
     if (filters?.limit) queryParams.append("limit", filters.limit.toString());
 
     // Call Next.js API route instead of Firebase Functions
-    const response = await fetch(`/api/scheduled-emails?${queryParams}`, {
+    const response = await staffFetch(`/api/scheduled-emails?${queryParams}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -278,7 +279,7 @@ export class ScheduledEmailService {
         : newScheduledFor.toISOString();
 
     // Call Next.js API route instead of Firebase Functions
-    const response = await fetch(`/api/scheduled-emails/${scheduledEmailId}`, {
+    const response = await staffFetch(`/api/scheduled-emails/${scheduledEmailId}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -315,7 +316,7 @@ export class ScheduledEmailService {
     },
   ) {
     // Call Next.js API route
-    const response = await fetch(`/api/scheduled-emails/${scheduledEmailId}`, {
+    const response = await staffFetch(`/api/scheduled-emails/${scheduledEmailId}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -341,7 +342,7 @@ export class ScheduledEmailService {
    */
   static async retryFailedEmail(scheduledEmailId: string) {
     // Call Next.js API route instead of Firebase Functions
-    const response = await fetch(
+    const response = await staffFetch(
       `/api/scheduled-emails/${scheduledEmailId}/retry`,
       {
         method: "POST",
@@ -369,7 +370,7 @@ export class ScheduledEmailService {
    * and update the booking to disable payment reminders
    */
   static async deletePaymentReminders(bookingId: string) {
-    const response = await fetch(
+    const response = await staffFetch(
       `/api/scheduled-emails/payment-reminders/${bookingId}`,
       {
         method: "DELETE",
@@ -397,7 +398,7 @@ export class ScheduledEmailService {
     * Rule is resolved by API route: max(dueDate - 14 days, reservation date) at SGT 09:00.
    */
   static async reschedulePendingPaymentReminders(bookingId: string) {
-    const response = await fetch(
+    const response = await staffFetch(
       `/api/scheduled-emails/payment-reminders/${bookingId}`,
       {
         method: "PATCH",
@@ -426,7 +427,7 @@ export class ScheduledEmailService {
    * Recompute scheduled dates for all pending payment reminders.
    */
   static async rescheduleAllPendingPaymentReminders() {
-    const response = await fetch(`/api/scheduled-emails/payment-reminders`, {
+    const response = await staffFetch(`/api/scheduled-emails/payment-reminders`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -453,7 +454,7 @@ export class ScheduledEmailService {
    */
   static async triggerProcessing() {
     // Call Next.js API route instead of Firebase Functions
-    const response = await fetch("/api/scheduled-emails/trigger", {
+    const response = await staffFetch("/api/scheduled-emails/trigger", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -477,7 +478,7 @@ export class ScheduledEmailService {
    * Manually trigger late-fee processing (apply penalties + schedule notices)
    */
   static async triggerLateFeesProcessing() {
-    const response = await fetch("/api/late-fees/process-now", {
+    const response = await staffFetch("/api/late-fees/process-now", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -509,7 +510,7 @@ export class ScheduledEmailService {
       customHtmlContent?: string;
     },
   ) {
-    const response = await fetch("/api/late-fees/send-notice", {
+    const response = await staffFetch("/api/late-fees/send-notice", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -543,7 +544,7 @@ export class ScheduledEmailService {
       waivedBy?: string;
     },
   ) {
-    const response = await fetch("/api/late-fees/waive", {
+    const response = await staffFetch("/api/late-fees/waive", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -577,7 +578,7 @@ export class ScheduledEmailService {
       customHtmlContent?: string;
     },
   ) {
-    const response = await fetch("/api/late-fees/send-notice", {
+    const response = await staffFetch("/api/late-fees/send-notice", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

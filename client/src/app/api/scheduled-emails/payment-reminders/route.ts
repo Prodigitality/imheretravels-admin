@@ -1,6 +1,7 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
 import {
+  db,
   collection,
   query,
   where,
@@ -9,7 +10,7 @@ import {
   getDoc,
   writeBatch,
   Timestamp,
-} from "firebase/firestore";
+} from "@/lib/server-firestore";
 
 type Term = "P1" | "P2" | "P3" | "P4";
 const TERM_REGEX = /\bP([1-4])\b/i;
@@ -96,6 +97,11 @@ function toSingapore9am(date: Date): Date {
  * Rule: max(term due date - 14 days, reservation date) at Asia/Singapore 09:00.
  */
 export async function PATCH(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const scheduledEmailsRef = collection(db, "scheduledEmails");
     const q = query(

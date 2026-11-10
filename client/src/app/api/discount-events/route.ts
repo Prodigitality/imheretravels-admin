@@ -1,11 +1,22 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, addDoc, Timestamp } from "firebase/firestore";
+import {
+  db,
+  collection,
+  getDocs,
+  addDoc,
+  Timestamp,
+} from "@/lib/server-firestore";
 import type { DiscountEventItem } from "@/services/discount-events-service";
 
 const COLLECTION = "discountEvents";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const snap = await getDocs(collection(db, COLLECTION));
     const events: any[] = [];
@@ -23,6 +34,11 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const input: {
       name: string;

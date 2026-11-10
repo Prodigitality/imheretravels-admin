@@ -1,3 +1,4 @@
+import { staffFetch } from "@/lib/staff-fetch";
 import { Timestamp } from "firebase/firestore";
 import { auth } from "@/lib/firebase";
 import { TourPackage, TourFilters } from "@/types/tours";
@@ -75,7 +76,7 @@ export async function createTour(
   try {
     const authHeaders = await getAuthHeaders();
 
-    const response = await fetch(API_BASE, {
+    const response = await staffFetch(API_BASE, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(tourData),
@@ -206,7 +207,7 @@ export async function getTours(
     params.append("sortOrder", sortOrder);
     params.append("limit", pageLimit.toString());
 
-    const response = await fetch(`${API_BASE}?${params.toString()}`);
+    const response = await staffFetch(`${API_BASE}?${params.toString()}`);
     const data = await response.json();
 
     if (!response.ok || !data.success) {
@@ -222,7 +223,7 @@ export async function getTours(
 
 export async function getTourById(id: string): Promise<TourPackage | null> {
   try {
-    const response = await fetch(`${API_BASE}/${id}`);
+    const response = await staffFetch(`${API_BASE}/${id}`);
 
     if (response.status === 404) {
       return null;
@@ -243,7 +244,7 @@ export async function getTourById(id: string): Promise<TourPackage | null> {
 
 export async function getAllTours(): Promise<TourPackage[]> {
   try {
-    const response = await fetch(`${API_BASE}?limit=1000`);
+    const response = await staffFetch(`${API_BASE}?limit=1000`);
     const data = await response.json();
 
     if (!response.ok || !data.success) {
@@ -330,7 +331,7 @@ export async function updateTour(
   try {
     const authHeaders = await getAuthHeaders();
 
-    const response = await fetch(`${API_BASE}/${id}`, {
+    const response = await staffFetch(`${API_BASE}/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(updates),
@@ -356,7 +357,7 @@ export async function updateTourMedia(
   mediaData: { coverImage?: string; gallery?: string[] },
 ): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE}/${id}/media`, {
+    const response = await staffFetch(`${API_BASE}/${id}/media`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(mediaData),
@@ -425,7 +426,7 @@ export async function updateTourStatus(
   status: "active" | "draft" | "archived",
 ): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE}/${id}/status`, {
+    const response = await staffFetch(`${API_BASE}/${id}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -450,7 +451,7 @@ export async function updateTourStatus(
 
 export async function deleteTour(id: string): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE}/${id}`, {
+    const response = await staffFetch(`${API_BASE}/${id}`, {
       method: "DELETE",
     });
 
@@ -470,7 +471,7 @@ export async function deleteTour(id: string): Promise<void> {
 // Soft delete - mark as archived instead of deleting
 export async function archiveTour(id: string): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE}/${id}/archive`, {
+    const response = await staffFetch(`${API_BASE}/${id}/archive`, {
       method: "POST",
     });
 
@@ -495,7 +496,7 @@ export async function batchUpdateTours(
   updates: { id: string; data: Partial<TourFormDataWithStringDates> }[],
 ): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE}/batch/update`, {
+    const response = await staffFetch(`${API_BASE}/batch/update`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ updates }),
@@ -516,7 +517,7 @@ export async function batchUpdateTours(
 
 export async function batchDeleteTours(ids: string[]): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE}/batch/delete`, {
+    const response = await staffFetch(`${API_BASE}/batch/delete`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids }),

@@ -1,3 +1,4 @@
+import { staffFetch } from "@/lib/staff-fetch";
 import {
   Timestamp,
   onSnapshot,
@@ -103,7 +104,7 @@ export class EmailTemplateService {
         );
       }
 
-      const response = await fetch(API_BASE, {
+      const response = await staffFetch(API_BASE, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -136,7 +137,7 @@ export class EmailTemplateService {
    */
   static async getTemplate(id: string): Promise<MailTemplate | null> {
     try {
-      const response = await fetch(`${API_BASE}/${id}`);
+      const response = await staffFetch(`${API_BASE}/${id}`);
 
       if (response.status === 404) {
         return null;
@@ -191,7 +192,7 @@ export class EmailTemplateService {
         params.append("limit", options.limit.toString());
       }
 
-      const response = await fetch(`${API_BASE}?${params.toString()}`);
+      const response = await staffFetch(`${API_BASE}?${params.toString()}`);
       const result = await response.json();
 
       if (!response.ok || !result.success) {
@@ -279,7 +280,7 @@ export class EmailTemplateService {
    */
   static async getTemplateStats(): Promise<TemplateStats> {
     try {
-      const response = await fetch(`${API_BASE}/stats`);
+      const response = await staffFetch(`${API_BASE}/stats`);
       const result = await response.json();
 
       if (!response.ok || !result.success) {
@@ -355,7 +356,7 @@ export class EmailTemplateService {
         );
       }
 
-      const response = await fetch(`${API_BASE}/${id}`, {
+      const response = await staffFetch(`${API_BASE}/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updateData),
@@ -383,7 +384,7 @@ export class EmailTemplateService {
    */
   static async incrementUsageCount(id: string): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE}/${id}/increment-usage`, {
+      const response = await staffFetch(`${API_BASE}/${id}/increment-usage`, {
         method: "POST",
       });
 
@@ -404,7 +405,7 @@ export class EmailTemplateService {
    */
   static async archiveTemplate(id: string): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE}/${id}/archive`, {
+      const response = await staffFetch(`${API_BASE}/${id}/archive`, {
         method: "POST",
       });
 
@@ -426,7 +427,7 @@ export class EmailTemplateService {
    */
   static async restoreTemplate(id: string): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE}/${id}/restore`, {
+      const response = await staffFetch(`${API_BASE}/${id}/restore`, {
         method: "POST",
       });
 
@@ -452,7 +453,7 @@ export class EmailTemplateService {
    */
   static async deleteTemplate(id: string): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE}/${id}`, {
+      const response = await staffFetch(`${API_BASE}/${id}`, {
         method: "DELETE",
       });
 
@@ -477,7 +478,7 @@ export class EmailTemplateService {
     userId: string
   ): Promise<string> {
     try {
-      const response = await fetch(`${API_BASE}/${templateId}/duplicate`, {
+      const response = await staffFetch(`${API_BASE}/${templateId}/duplicate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
@@ -509,7 +510,7 @@ export class EmailTemplateService {
     status: TemplateStatus
   ): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE}/batch/update-status`, {
+      const response = await staffFetch(`${API_BASE}/batch/update-status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ templateIds, status }),
@@ -533,7 +534,7 @@ export class EmailTemplateService {
    */
   static async bulkDeleteTemplates(templateIds: string[]): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE}/batch/delete`, {
+      const response = await staffFetch(`${API_BASE}/batch/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ templateIds }),

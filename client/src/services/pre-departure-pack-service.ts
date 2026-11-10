@@ -17,7 +17,7 @@ const API_BASE = "/api/pre-departure-packs";
  */
 export async function getAllPreDeparturePacks(): Promise<PreDeparturePack[]> {
   try {
-    const response = await fetch(API_BASE);
+    const response = await staffFetch(API_BASE);
     const result = await response.json();
 
     if (!response.ok || !result.success) {
@@ -38,7 +38,7 @@ export async function getPreDeparturePackById(
   id: string
 ): Promise<PreDeparturePack | null> {
   try {
-    const response = await fetch(`${API_BASE}/${id}`);
+    const response = await staffFetch(`${API_BASE}/${id}`);
 
     if (response.status === 404) {
       return null;
@@ -64,7 +64,7 @@ export async function findPackByTourPackageName(
   tourPackageName: string
 ): Promise<PreDeparturePack | null> {
   try {
-    const response = await fetch(
+    const response = await staffFetch(
       `${API_BASE}/by-tour/${encodeURIComponent(tourPackageName)}`
     );
 
@@ -94,7 +94,7 @@ export async function checkTourPackageAvailability(
   excludePackId?: string
 ): Promise<string[]> {
   try {
-    const response = await fetch(`${API_BASE}/check-availability`, {
+    const response = await staffFetch(`${API_BASE}/check-availability`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tourPackages, excludePackId }),
@@ -260,7 +260,7 @@ export async function deletePreDeparturePack(packId: string): Promise<void> {
  */
 export async function getPreDepartureConfig(): Promise<PreDepartureConfig> {
   try {
-    const response = await fetch(`${API_BASE}/config`);
+    const response = await staffFetch(`${API_BASE}/config`);
     const result = await response.json();
 
     if (!response.ok || !result.success) {
@@ -281,7 +281,7 @@ export async function updatePreDepartureConfig(
   automaticSends: boolean
 ): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE}/config`, {
+    const response = await staffFetch(`${API_BASE}/config`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ automaticSends }),

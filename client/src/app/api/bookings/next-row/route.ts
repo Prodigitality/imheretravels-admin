@@ -1,13 +1,18 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { NextRequest, NextResponse } from "next/server";
+import { requireStaff } from "@/lib/require-staff";
+import { db, collection, getDocs } from "@/lib/server-firestore";
 
 const COLLECTION_NAME = "bookings";
 
 /**
  * GET /api/bookings/next-row - Get the next available row number
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const bookingsCollection = collection(db, COLLECTION_NAME);
     const snapshot = await getDocs(bookingsCollection);

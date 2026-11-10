@@ -1,6 +1,7 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
 import {
+  db,
   collection,
   getDocs,
   addDoc,
@@ -8,8 +9,7 @@ import {
   orderBy,
   where,
   Timestamp,
-} from "firebase/firestore";
-import { useAuthStore } from "@/store/auth-store";
+} from "@/lib/server-firestore";
 import type {
   PaymentTermConfiguration,
   PaymentTermCreateRequest,
@@ -48,14 +48,19 @@ function sanitizeData(obj: any): any {
  * POST /api/payment-terms - Create a new payment term
  */
 export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const data: PaymentTermCreateRequest = await request.json();
-    const { user } = useAuthStore.getState();
-    const userId = user?.uid || "anonymous";
+    const userId = staff.uid;
 
     console.log("Creating payment term with user ID:", userId);
 
-    const now = Timestamp.now();
+    // The shared type names the browser SDK Timestamp; firebase-admin stores the same value.
+    const now = Timestamp.now() as unknown as PaymentTermConfiguration["metadata"]["createdAt"];
     const paymentTermData: Omit<PaymentTermConfiguration, "id"> = {
       ...data,
       metadata: {
@@ -93,6 +98,11 @@ export async function POST(request: NextRequest) {
  * GET /api/payment-terms - Get all payment terms or filtered
  */
 export async function GET(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get("active") === "true";

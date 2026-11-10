@@ -1,7 +1,12 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, addDoc, Timestamp } from "firebase/firestore";
-import { verifyRequestUserId } from "@/lib/firebase-admin-auth";
+import {
+  db,
+  collection,
+  getDocs,
+  addDoc,
+  Timestamp,
+} from "@/lib/server-firestore";
 import { revalidateWww } from "@/lib/revalidate-www";
 import { manilaLocalToDate } from "@/lib/manila-time";
 
@@ -11,17 +16,13 @@ const DESTINATIONS_COLLECTION = "destinations";
  * POST /api/destinations - Create a new destination
  */
 export async function POST(request: NextRequest) {
-  try {
-    const currentUserId = await verifyRequestUserId(
-      request.headers.get("authorization"),
-    );
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
 
-    if (!currentUserId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 },
-      );
-    }
+  try {
+    const currentUserId = staff.uid;
 
     const destinationData = await request.json();
 
@@ -77,6 +78,11 @@ export async function POST(request: NextRequest) {
  * GET /api/destinations - Get all destinations with optional search/status filter
  */
 export async function GET(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");

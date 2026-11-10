@@ -1,11 +1,22 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { doc, getDoc, updateDoc, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import {
+  db,
+  doc,
+  getDoc,
+  updateDoc,
+  Timestamp,
+} from "@/lib/server-firestore";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const staff = await requireStaff(req.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { id: scheduledEmailId } = await params;
 

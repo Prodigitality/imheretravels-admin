@@ -524,7 +524,7 @@ function TransactionsPageContent() {
 
     setIsDeleting(true);
     try {
-      const response = await fetch(
+      const response = await staffFetch(
         `/api/transactions/${transactionToDelete.id}`,
         {
           method: "DELETE",

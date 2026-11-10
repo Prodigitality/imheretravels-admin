@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc, Timestamp } from "firebase/firestore";
+import {
+  db,
+  doc,
+  getDoc,
+  updateDoc,
+  Timestamp,
+} from "@/lib/server-firestore";
 import { uploadFile, deleteFile, STORAGE_BUCKET } from "@/lib/server-storage";
 import { requireStaff } from "@/lib/require-staff";
 import type { PreDeparturePack } from "@/types/pre-departure-pack";

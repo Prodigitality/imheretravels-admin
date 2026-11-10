@@ -10,6 +10,7 @@ import {
   type Query,
   type SetOptions,
   type WhereFilterOp,
+  type WriteBatch,
 } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin-db";
 
@@ -154,6 +155,44 @@ export function query(base: Query<DocumentData>, ...constraints: Constraint[]): 
     if (c.type === "orderBy") return q.orderBy(c.field, c.direction);
     return q.limit(c.n);
   }, base);
+}
+
+/** `writeBatch(db)`: firebase-admin's WriteBatch has the same set/update/delete/commit. */
+export function writeBatch(_db: Db): WriteBatch {
+  return adminDb().batch();
+}
+
+/** The browser SDK's Transaction shape: `get()` returns a snapshot with `exists()`. */
+export interface ServerTransaction {
+  get(ref: Ref): Promise<ServerDocSnapshot>;
+  set(ref: Ref, data: DocumentData, options?: SetOptions): ServerTransaction;
+  update(ref: Ref, data: DocumentData): ServerTransaction;
+  delete(ref: Ref): ServerTransaction;
+}
+
+export function runTransaction<T>(
+  _db: Db,
+  updateFunction: (transaction: ServerTransaction) => Promise<T>,
+): Promise<T> {
+  return adminDb().runTransaction(async (t) => {
+    const tx: ServerTransaction = {
+      get: async (ref) => wrap(await t.get(ref)),
+      set: (ref, data, options) => {
+        if (options) t.set(ref, data, options);
+        else t.set(ref, data);
+        return tx;
+      },
+      update: (ref, data) => {
+        t.update(ref, data);
+        return tx;
+      },
+      delete: (ref) => {
+        t.delete(ref);
+        return tx;
+      },
+    };
+    return updateFunction(tx);
+  });
 }
 
 export const serverTimestamp = () => FieldValue.serverTimestamp();

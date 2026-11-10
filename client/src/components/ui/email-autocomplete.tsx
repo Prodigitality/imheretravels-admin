@@ -1,4 +1,5 @@
 "use client";
+import { staffFetch } from "@/lib/staff-fetch";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Input } from "@/components/ui/input";
@@ -54,7 +55,7 @@ export function EmailAutocomplete({
 
     setIsLoading(true);
     try {
-      const response = await fetch(
+      const response = await staffFetch(
         `/api/contacts/search?q=${encodeURIComponent(query)}`
       );
       if (response.ok) {

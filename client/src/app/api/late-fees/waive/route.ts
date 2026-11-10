@@ -1,5 +1,7 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
 import {
+  db,
   addDoc,
   collection,
   deleteField,
@@ -7,8 +9,7 @@ import {
   getDoc,
   runTransaction,
   Timestamp,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+} from "@/lib/server-firestore";
 
 type TermKey = "p1" | "p2" | "p3" | "p4";
 
@@ -26,6 +27,11 @@ function getTermLabel(termKey: TermKey): string {
  * getTotalLateFeesFunction) which re-derive from the now-cleared penalty fields.
  */
 export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const body = await request.json();
     const bookingId = String(body?.bookingId || "").trim();

@@ -1,12 +1,13 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
 import {
+  db,
   collection,
   getDocs,
   query,
   where,
   orderBy,
-} from "firebase/firestore";
+} from "@/lib/server-firestore";
 import type { PaymentTermConfiguration, PaymentPlanType } from "@/types/payment-terms";
 
 const COLLECTION_NAME = "paymentTerms";
@@ -14,7 +15,12 @@ const COLLECTION_NAME = "paymentTerms";
 /**
  * GET /api/payment-terms/active - Get active payment terms for selections
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     console.log("GET /api/payment-terms/active");
 

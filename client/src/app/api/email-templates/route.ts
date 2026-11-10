@@ -1,6 +1,7 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
 import {
+  db,
   collection,
   getDocs,
   addDoc,
@@ -9,8 +10,7 @@ import {
   orderBy,
   limit,
   Timestamp,
-} from "firebase/firestore";
-import { useAuthStore } from "@/store/auth-store";
+} from "@/lib/server-firestore";
 import { TemplateStatus } from "@/types/mail";
 
 const COLLECTION_NAME = "emailTemplates";
@@ -19,10 +19,14 @@ const COLLECTION_NAME = "emailTemplates";
  * POST /api/email-templates - Create a new email template
  */
 export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const data = await request.json();
-    const { user } = useAuthStore.getState();
-    const userId = user?.uid || "anonymous";
+    const userId = staff.uid;
 
     console.log("Creating email template with user ID:", userId);
 
@@ -68,6 +72,11 @@ export async function POST(request: NextRequest) {
  * GET /api/email-templates - Get all email templates with optional filters
  */
 export async function GET(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
 

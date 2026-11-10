@@ -1,6 +1,10 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, writeBatch } from "firebase/firestore";
+import {
+  db,
+  doc,
+  writeBatch,
+} from "@/lib/server-firestore";
 
 const COLLECTION_NAME = "emailTemplates";
 
@@ -8,6 +12,11 @@ const COLLECTION_NAME = "emailTemplates";
  * POST /api/email-templates/batch/delete - Bulk delete email templates
  */
 export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { templateIds } = await request.json();
 

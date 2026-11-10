@@ -1,7 +1,13 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc, deleteDoc, Timestamp } from "firebase/firestore";
-import { verifyRequestUserId } from "@/lib/firebase-admin-auth";
+import {
+  db,
+  doc,
+  getDoc,
+  updateDoc,
+  deleteDoc,
+  Timestamp,
+} from "@/lib/server-firestore";
 import { revalidateWww } from "@/lib/revalidate-www";
 import { manilaLocalToDate } from "@/lib/manila-time";
 
@@ -14,6 +20,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { id } = await params;
     const docRef = doc(db, DESTINATIONS_COLLECTION, id);
@@ -48,17 +59,13 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  try {
-    const currentUserId = await verifyRequestUserId(
-      request.headers.get("authorization"),
-    );
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
 
-    if (!currentUserId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 },
-      );
-    }
+  try {
+    const currentUserId = staff.uid;
 
     const { id } = await params;
     const updates = await request.json();
@@ -117,17 +124,13 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  try {
-    const currentUserId = await verifyRequestUserId(
-      request.headers.get("authorization"),
-    );
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
 
-    if (!currentUserId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 },
-      );
-    }
+  try {
+    const currentUserId = staff.uid;
 
     const { id } = await params;
     const docRef = doc(db, DESTINATIONS_COLLECTION, id);

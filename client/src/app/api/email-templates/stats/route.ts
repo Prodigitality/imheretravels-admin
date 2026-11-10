@@ -1,6 +1,10 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import {
+  db,
+  collection,
+  getDocs,
+} from "@/lib/server-firestore";
 import { TemplateStatus } from "@/types/mail";
 
 const COLLECTION_NAME = "emailTemplates";
@@ -8,7 +12,12 @@ const COLLECTION_NAME = "emailTemplates";
 /**
  * GET /api/email-templates/stats - Get email template statistics
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
     

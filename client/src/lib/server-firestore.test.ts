@@ -35,6 +35,18 @@ const fakeDb = {
     update: async (d: unknown) => calls.push(`update(${path}) ${JSON.stringify(d)}`),
   }),
 };
+const fakeBatch = { commit: async () => undefined };
+Object.assign(fakeDb, {
+  batch: () => fakeBatch,
+  runTransaction: async (fn: (t: any) => Promise<unknown>) =>
+    fn({
+      get: (ref: any) => ref.get(),
+      update: (ref: any, d: unknown) => calls.push(`tx.update(${ref.path}) ${JSON.stringify(d)}`),
+      set: (ref: any, d: unknown, o?: unknown) =>
+        calls.push(`tx.set(${ref.path}) ${JSON.stringify(d)} ${JSON.stringify(o ?? null)}`),
+      delete: (ref: any) => calls.push(`tx.delete(${ref.path})`),
+    }),
+});
 vi.mock("@/lib/firebase-admin-db", () => ({ adminDb: () => fakeDb }));
 
 import {
@@ -47,9 +59,11 @@ import {
   limit,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from "@/lib/server-firestore";
 
 describe("server-firestore (browser-SDK shape over firebase-admin)", () => {
@@ -102,5 +116,27 @@ describe("server-firestore (browser-SDK shape over firebase-admin)", () => {
       'add(bookings) {"a":1}',
     ]);
     expect((ref as any).path).toBe("bookings/NEW");
+  });
+
+  it("hands out firebase-admin's batch for writeBatch(db)", () => {
+    expect(writeBatch(db)).toBe(fakeBatch);
+  });
+
+  it("runs transactions with browser-shaped snapshots and chainable writes", async () => {
+    calls.length = 0;
+    const result = await runTransaction(db, async (tx) => {
+      const found = await tx.get(doc(db, "bookings", "b1"));
+      const missing = await tx.get(doc(db, "bookings", "missing"));
+      tx.update(doc(db, "bookings", "b1"), { n: 1 })
+        .set(doc(db, "bookings", "b2"), { n: 2 }, { merge: true })
+        .delete(doc(db, "bookings", "b3"));
+      return `${found.exists()}/${missing.exists()}`;
+    });
+    expect(result).toBe("true/false");
+    expect(calls).toEqual([
+      'tx.update(bookings/b1) {"n":1}',
+      'tx.set(bookings/b2) {"n":2} {"merge":true}',
+      "tx.delete(bookings/b3)",
+    ]);
   });
 });

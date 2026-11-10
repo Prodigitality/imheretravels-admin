@@ -1,5 +1,8 @@
+import type { NextRequest } from "next/server";
+import { requireStaff } from "@/lib/require-staff";
 import { NextResponse } from "next/server";
 import {
+  db,
   addDoc,
   collection,
   getDocs,
@@ -10,8 +13,7 @@ import {
   doc,
   runTransaction,
   updateDoc,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+} from "@/lib/server-firestore";
 import EmailTemplateService from "@/services/email-template-service";
 import GmailApiService from "@/lib/gmail/gmail-api-service";
 import {
@@ -92,7 +94,12 @@ function getGmailSentUrl(messageId: string): string {
   return `https://mail.google.com/mail/u/0/#sent/${messageId}`;
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const configRef = doc(db, "config", "late-fees");
     const configSnapshot = await getDocs(

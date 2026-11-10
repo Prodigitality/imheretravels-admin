@@ -1,7 +1,12 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc, Timestamp } from "firebase/firestore";
-import { useAuthStore } from "@/store/auth-store";
+import {
+  db,
+  doc,
+  getDoc,
+  updateDoc,
+  Timestamp,
+} from "@/lib/server-firestore";
 import type { PreDepartureConfig } from "@/types/pre-departure-pack";
 
 const CONFIG_COLLECTION = "config";
@@ -10,7 +15,12 @@ const CONFIG_DOC = "pre-departure";
 /**
  * GET /api/pre-departure-packs/config - Get pre-departure configuration
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const docRef = doc(db, CONFIG_COLLECTION, CONFIG_DOC);
     const docSnap = await getDoc(docRef);
@@ -45,6 +55,11 @@ export async function GET() {
  * PATCH /api/pre-departure-packs/config - Update pre-departure configuration
  */
 export async function PATCH(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { automaticSends } = await request.json();
 
@@ -55,8 +70,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { user } = useAuthStore.getState();
-    const userId = user?.uid || "anonymous";
+    const userId = staff.uid;
 
     const docRef = doc(db, CONFIG_COLLECTION, CONFIG_DOC);
 

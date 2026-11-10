@@ -1,6 +1,12 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import {
+  db,
+  collection,
+  getDocs,
+  query,
+  orderBy,
+} from "@/lib/server-firestore";
 import type {
   PreDeparturePack,
   TourPackageAssignment,
@@ -12,6 +18,11 @@ const COLLECTION_NAME = "preDeparturePack";
  * POST /api/pre-departure-packs/check-availability - Check tour package availability
  */
 export async function POST(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { tourPackages, excludePackId } = await request.json();
 

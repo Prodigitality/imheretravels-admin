@@ -1,3 +1,4 @@
+import { staffFetch } from "@/lib/staff-fetch";
 import { auth } from "@/lib/firebase";
 import type { Incident, IncidentFormData } from "@/types/incidents";
 
@@ -49,7 +50,7 @@ export async function createIncident(
   file?: File | null,
 ): Promise<string> {
   const authHeaders = await getAuthHeaders();
-  const response = await fetch(API_BASE, {
+  const response = await staffFetch(API_BASE, {
     method: "POST",
     headers: { ...authHeaders },
     body: toFormData(data, file),
@@ -66,7 +67,7 @@ export async function createIncident(
 // ============================================================================
 
 export async function getIncidentById(id: string): Promise<Incident | null> {
-  const response = await fetch(`${API_BASE}/${id}`);
+  const response = await staffFetch(`${API_BASE}/${id}`);
   if (response.status === 404) return null;
   const data = await response.json();
   if (!response.ok || !data.success) {
@@ -86,7 +87,7 @@ export async function updateIncident(
   removeAttachment?: boolean,
 ): Promise<void> {
   const authHeaders = await getAuthHeaders();
-  const response = await fetch(`${API_BASE}/${id}`, {
+  const response = await staffFetch(`${API_BASE}/${id}`, {
     method: "PATCH",
     headers: { ...authHeaders },
     body: toFormData(data, file, removeAttachment),
@@ -103,7 +104,7 @@ export async function updateIncident(
 
 export async function deleteIncident(id: string): Promise<void> {
   const authHeaders = await getAuthHeaders();
-  const response = await fetch(`${API_BASE}/${id}`, {
+  const response = await staffFetch(`${API_BASE}/${id}`, {
     method: "DELETE",
     headers: { ...authHeaders },
   });

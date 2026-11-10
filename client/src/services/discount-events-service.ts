@@ -1,3 +1,4 @@
+import { staffFetch } from "@/lib/staff-fetch";
 export interface DateDiscount {
   date: string; // ISO date string (YYYY-MM-DD)
   discountRate: number; // percent, e.g. 10 = 10%
@@ -27,7 +28,7 @@ export interface DiscountEvent {
 
 export const DiscountEventsService = {
   async list(): Promise<DiscountEvent[]> {
-    const res = await fetch("/api/discount-events");
+    const res = await staffFetch("/api/discount-events");
     if (!res.ok) {
       throw new Error(`Failed to list discount events: ${res.statusText}`);
     }
@@ -48,7 +49,7 @@ export const DiscountEventsService = {
     scheduledEnd?: string;
     discountType?: "percent" | "amount";
   }): Promise<string> {
-    const res = await fetch("/api/discount-events", {
+    const res = await staffFetch("/api/discount-events", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -66,7 +67,7 @@ export const DiscountEventsService = {
   },
 
   async setActive(id: string, active: boolean): Promise<void> {
-    const res = await fetch(`/api/discount-events/${id}`, {
+    const res = await staffFetch(`/api/discount-events/${id}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -83,7 +84,7 @@ export const DiscountEventsService = {
   },
 
   async update(id: string, updates: Partial<Omit<DiscountEvent, "id">>) {
-    const res = await fetch(`/api/discount-events/${id}`, {
+    const res = await staffFetch(`/api/discount-events/${id}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -100,7 +101,7 @@ export const DiscountEventsService = {
   },
 
   async remove(id: string) {
-    const res = await fetch(`/api/discount-events/${id}`, {
+    const res = await staffFetch(`/api/discount-events/${id}`, {
       method: "DELETE",
     });
     if (!res.ok) {

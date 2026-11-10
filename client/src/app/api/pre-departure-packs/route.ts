@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
 import {
+  db,
   collection,
   getDocs,
   addDoc,
   query,
   orderBy,
   Timestamp,
-} from "firebase/firestore";
+} from "@/lib/server-firestore";
 import { uploadFile, STORAGE_BUCKET } from "@/lib/server-storage";
 import { requireStaff } from "@/lib/require-staff";
 import type {
@@ -20,7 +20,12 @@ const COLLECTION_NAME = "preDeparturePack";
 /**
  * GET /api/pre-departure-packs - Get all pre-departure packs
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const q = query(
       collection(db, COLLECTION_NAME),
@@ -128,7 +133,8 @@ export async function POST(request: NextRequest) {
       contentType: file.type,
       storagePath: uploadResult.data.path,
       size: file.size,
-      uploadedAt: Timestamp.now(),
+      // The shared type names the browser SDK Timestamp; firebase-admin stores the same value.
+      uploadedAt: Timestamp.now() as unknown as PreDeparturePack["uploadedAt"],
       uploadedBy: userId,
       metadata,
     };

@@ -1,6 +1,11 @@
+import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, updateDoc, Timestamp } from "firebase/firestore";
+import {
+  db,
+  doc,
+  updateDoc,
+  Timestamp,
+} from "@/lib/server-firestore";
 
 const COLLECTION_NAME = "paymentTerms";
 
@@ -8,6 +13,11 @@ const COLLECTION_NAME = "paymentTerms";
  * PATCH /api/payment-terms/sort-order - Update sort order of multiple payment terms
  */
 export async function PATCH(request: NextRequest) {
+  const staff = await requireStaff(request.headers.get("authorization"));
+  if (!staff.ok) {
+    return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
+  }
+
   try {
     const { updates } = await request.json();
 

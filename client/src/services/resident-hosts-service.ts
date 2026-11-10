@@ -1,3 +1,4 @@
+import { staffFetch } from "@/lib/staff-fetch";
 import { auth } from "@/lib/firebase";
 import {
   ResidentHost,
@@ -29,7 +30,7 @@ export async function createResidentHost(
   try {
     const authHeaders = await getAuthHeaders();
 
-    const response = await fetch(API_BASE, {
+    const response = await staffFetch(API_BASE, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(data),
@@ -57,7 +58,7 @@ export async function createResidentHost(
 
 export async function getAllResidentHosts(): Promise<ResidentHost[]> {
   try {
-    const response = await fetch(`${API_BASE}?limit=1000`);
+    const response = await staffFetch(`${API_BASE}?limit=1000`);
     const data = await response.json();
 
     if (!response.ok || !data.success) {
@@ -75,7 +76,7 @@ export async function getResidentHostById(
   id: string,
 ): Promise<ResidentHost | null> {
   try {
-    const response = await fetch(`${API_BASE}/${id}`);
+    const response = await staffFetch(`${API_BASE}/${id}`);
 
     if (response.status === 404) {
       return null;
@@ -105,7 +106,7 @@ export async function updateResidentHost(
   try {
     const authHeaders = await getAuthHeaders();
 
-    const response = await fetch(`${API_BASE}/${id}`, {
+    const response = await staffFetch(`${API_BASE}/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(updates),
@@ -146,7 +147,7 @@ export async function deleteResidentHost(id: string): Promise<void> {
   try {
     const authHeaders = await getAuthHeaders();
 
-    const response = await fetch(`${API_BASE}/${id}`, {
+    const response = await staffFetch(`${API_BASE}/${id}`, {
       method: "DELETE",
       headers: { ...authHeaders },
     });

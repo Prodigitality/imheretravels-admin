@@ -1,7 +1,7 @@
 // app/api/marketing/unsubscribe/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
 import {
+  db,
   collection,
   query,
   where,
@@ -9,7 +9,7 @@ import {
   limit,
   updateDoc,
   serverTimestamp,
-} from "firebase/firestore";
+} from "@/lib/server-firestore";
 
 /**
  * Public unsubscribe endpoint for marketing/follow-up emails.

@@ -1,4 +1,5 @@
 "use client";
+import { staffFetch } from "@/lib/staff-fetch";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
@@ -262,7 +263,7 @@ export default function ImagePickerModal({
     if (!decodable) {
       setUploading(true);
       try {
-        const res = await fetch("/api/heic-convert", {
+        const res = await staffFetch("/api/heic-convert", {
           method: "POST",
           headers: { "Content-Type": "application/octet-stream" },
           body: file,
