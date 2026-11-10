@@ -1,29 +1,92 @@
 rules_version = '2';
 
+// Default deny. Clients get only what is allowed below; everything else
+// (signed-out visitors, unapproved accounts, unknown collections for
+// non-staff) is refused. Server code (API routes, Cloud Functions, www and the
+// customer portal) uses firebase-admin, which bypasses these rules.
+// Background: portal/docs/06-phase0-admin-lockdown.md. Tests:
+// firestore.rules.test.ts (`npm run test:rules`).
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // TEMPORARY: Firebase test-mode rule, open to any client until 2026-12-31.
-    // (Extended from 2026-10-22: 63 API routes still use the browser SDK with
-    // no signed-in user, so default-deny would break them, incl. the Stripe
-    // webhook.)
-    // Replace with default-deny rules before then
-    // (portal/docs/06-phase0-admin-lockdown.md).
-    //
-    // Server-only collections are excluded, so no client can read or write
-    // them. The admin server reads them with firebase-admin, which bypasses
-    // these rules:
-    //   guestPassportData: passport-form data for /reports/customers
-    //   saleEvents, saleHolds, saleRateLimits: Black Friday slot inventory and
-    //     holds; only the sale API may change them, so a browser can't free or
-    //     grab slots
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // An approved admin or agent: the same test as requireStaff on the server.
+    function isStaff() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().get('isApproved', false) == true
+        && userDoc().get('role', '') in ['admin', 'agent'];
+    }
+
+    function isAdmin() {
+      return isStaff() && userDoc().role == 'admin';
+    }
+
+    // Collections no client may touch, not even staff. The server reads them
+    // with firebase-admin.
+    //   users: own rules below
+    //   guestPassportData: passport-form data (staff see it via /api/reports)
+    //   saleEvents, saleHolds, saleRateLimits: Black Friday inventory and holds,
+    //     changed only by the sale API
     //   partnerApplications, partnerApplicationRateLimits: Work With Us
-    //     applications (personal data) from www; staff read them through the
-    //     /api/partner-applications routes
+    //     applications from www, read via /api/partner-applications
+    //   the rest: customer-portal collections (portal/docs/02-data-model.md,
+    //     portal/firestore/customer-collections.rules)
+    function staffClosed(collection) {
+      return collection in [
+        'users',
+        'guestPassportData',
+        'saleEvents', 'saleHolds', 'saleRateLimits',
+        'partnerApplications', 'partnerApplicationRateLimits',
+        'customerAccounts', 'customerAuthIdentities', 'customerProfiles',
+        'securityEvents', 'auditLogs', 'idempotencyKeys',
+        'bookingAccountLinks', 'bookingLinkGuards', 'accountClaims',
+        'userPreferences', 'userConsents', 'suppressions',
+        'dataSubjectRequests', 'deletionJobs',
+        'travelProfiles', 'tripRequirements', 'tripRequirementEvents',
+        'travellerDocuments', 'guestAccessTokens', 'rateLimits'
+      ];
+    }
+
+    // Approved staff: the admin app reads and writes its operational data
+    // (bookings, tours, templates, scheduled emails, …) from the browser.
     match /{collection}/{document=**} {
-      allow read, write: if request.time < timestamp.date(2026, 12, 31)
-        && !(collection in ['guestPassportData', 'saleEvents', 'saleHolds', 'saleRateLimits',
-                            'partnerApplications', 'partnerApplicationRateLimits']);
+      allow read, write: if isStaff() && !staffClosed(collection);
+    }
+
+    // Public catalog: the reservation form and booking-status page read these
+    // without signing in. Writes stay staff-only (rule above).
+    match /tourPackages/{id} {
+      allow read: if true;
+    }
+    match /paymentTerms/{id} {
+      allow read: if true;
+    }
+
+    // Staff accounts. A new account creates its own doc, unapproved; only an
+    // approved admin can approve it, change a role or permissions, or delete.
+    match /users/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isStaff();
+
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.get('isApproved', false) == false
+        && request.resource.data.get('role', 'agent') in ['admin', 'agent'];
+
+      allow update: if isAdmin()
+        || (signedIn()
+            && request.auth.uid == uid
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAny(['role', 'isApproved', 'permissions']));
+
+      allow delete: if isAdmin();
     }
   }
 }

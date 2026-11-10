@@ -10,6 +10,7 @@
     "check:reviews-ui": "node scripts/check-reviews-ui-sync.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-iht-admin \"vitest run --config vitest.rules.config.ts\"",
     "test:booking-flow": "vitest run src/app/reservation-booking-form/utils/bookingFlow.test.ts",
     "migrate:001": "tsx migrations/migrate.ts 001",
     "migrate:002": "tsx migrations/migrate.ts 002",
@@ -225,6 +226,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@types/heic-convert": "^2.1.1",
     "@types/jspdf": "^2.0.0",
     "@types/node": "^20",

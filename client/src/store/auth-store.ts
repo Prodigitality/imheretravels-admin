@@ -14,10 +14,6 @@ import {
   setDoc,
   getDoc,
   updateDoc,
-  collection,
-  query,
-  where,
-  getDocs,
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
@@ -635,25 +631,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      // Query users collection by email field
-      const usersRef = collection(db, "users");
-      const q = query(usersRef, where("email", "==", email));
-      const querySnapshot = await getDocs(q);
-
-      if (!querySnapshot.empty) {
-        const userDoc = querySnapshot.docs[0];
-        const userData = userDoc.data() as UserType;
-        return {
-          exists: true,
-          user: userData,
-          isVerified: userData.isEmailVerified || false,
-          hasAgreed: userData.hasAgreedToTerms || false,
-        };
-      } else {
-        return {
-          exists: false,
-        };
+      // Asked before sign-in, so the server answers: `users` is closed to
+      // signed-out clients, and only these flags (no profile) come back.
+      const response = await fetch("/api/auth/staff-account-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        exists?: boolean;
+        isVerified?: boolean;
+        hasAgreed?: boolean;
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to check account");
       }
+      if (!result.exists) {
+        return { exists: false };
+      }
+      return {
+        exists: true,
+        isVerified: !!result.isVerified,
+        hasAgreed: !!result.hasAgreed,
+      };
     } catch (error: unknown) {
       // Parse Firebase error and show user-friendly message
       const authError = parseFirebaseError(error as Error);
