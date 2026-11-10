@@ -1,7 +1,7 @@
 import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
 import {
+  db,
   doc,
   getDoc,
   deleteDoc,
@@ -11,9 +11,8 @@ import {
   orderBy,
   getDocs,
   writeBatch,
-} from "firebase/firestore";
-import { useAuthStore } from "@/store/auth-store";
-import { bookingVersionHistoryService } from "@/services/booking-version-history-service";
+} from "@/lib/server-firestore";
+import { createVersionSnapshot, staffDisplayName } from "@/lib/booking-version-history-server";
 
 const COLLECTION_NAME = "bookings";
 
@@ -54,6 +53,7 @@ export async function DELETE(
       // Create version snapshot before deletion even without row shifting
       const currentBookingWithId = { id, ...bookingData };
       await createVersionSnapshotAsync(
+        staff.uid,
         id,
         currentBookingWithId,
         "delete",
@@ -89,6 +89,7 @@ export async function DELETE(
     // Create version snapshot before deletion with row shifting
     const currentBookingWithId = { id, ...bookingData };
     await createVersionSnapshotAsync(
+      staff.uid,
       id,
       currentBookingWithId,
       "delete",
@@ -201,20 +202,17 @@ async function cleanupScheduledEmails(bookingId: string): Promise<void> {
  * Helper: Create version snapshot
  */
 async function createVersionSnapshotAsync(
+  authorUid: string,
   bookingId: string,
   currentBooking: Record<string, any>,
   changeType: "delete",
   customDescription: string
 ): Promise<void> {
   try {
-    const { user, userProfile } = useAuthStore.getState();
-    const currentUserId = user?.uid || "system";
-    const currentUserName =
-      userProfile?.profile?.firstName && userProfile?.profile?.lastName
-        ? `${userProfile.profile.firstName} ${userProfile.profile.lastName}`
-        : userProfile?.email || user?.email || "System";
+    const currentUserId = authorUid;
+    const currentUserName = await staffDisplayName(authorUid);
 
-    await bookingVersionHistoryService.createVersionSnapshot(
+    await createVersionSnapshot(
       bookingId,
       currentBooking as any,
       {

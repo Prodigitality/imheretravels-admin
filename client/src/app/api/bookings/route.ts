@@ -1,7 +1,7 @@
 import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
 import {
+  db,
   collection,
   getDocs,
   addDoc,
@@ -9,10 +9,9 @@ import {
   orderBy,
   writeBatch,
   doc,
-} from "firebase/firestore";
+} from "@/lib/server-firestore";
+import { createVersionSnapshot, createBulkOperationSnapshot, staffDisplayName } from "@/lib/booking-version-history-server";
 import crypto from "crypto";
-import { useAuthStore } from "@/store/auth-store";
-import { bookingVersionHistoryService } from "@/services/booking-version-history-service";
 import { normalizeBookingEmailFields } from "@/lib/email-normalize";
 
 const COLLECTION_NAME = "bookings";
@@ -101,7 +100,7 @@ export async function POST(request: NextRequest) {
 
     if (!isEmptyPlaceholder && !needsIdField) {
       // Create version snapshot asynchronously (fire-and-forget)
-      createVersionSnapshotAsync(docRef.id, bookingData);
+      createVersionSnapshotAsync(staff.uid, docRef.id, bookingData);
     }
 
     return NextResponse.json({
@@ -143,12 +142,8 @@ export async function DELETE(request: NextRequest) {
       const affectedBookingIds = docs.map((doc) => doc.id);
 
       // Get current user info
-      const { user, userProfile } = useAuthStore.getState();
-      const currentUserId = user?.uid || "system";
-      const currentUserName =
-        userProfile?.profile?.firstName && userProfile?.profile?.lastName
-          ? `${userProfile.profile.firstName} ${userProfile.profile.lastName}`
-          : userProfile?.email || user?.email || "System";
+      const currentUserId = staff.uid;
+      const currentUserName = await staffDisplayName(staff.uid);
 
       // Create bulk delete snapshot asynchronously
       createBulkDeleteSnapshotAsync({
@@ -192,18 +187,15 @@ export async function DELETE(request: NextRequest) {
  * Helper: Create version snapshot asynchronously
  */
 async function createVersionSnapshotAsync(
+  authorUid: string,
   bookingId: string,
   bookingData: Record<string, any>
 ): Promise<void> {
   try {
-    const { user, userProfile } = useAuthStore.getState();
-    const currentUserId = user?.uid || "system";
-    const currentUserName =
-      userProfile?.profile?.firstName && userProfile?.profile?.lastName
-        ? `${userProfile.profile.firstName} ${userProfile.profile.lastName}`
-        : userProfile?.email || user?.email || "System";
+    const currentUserId = authorUid;
+    const currentUserName = await staffDisplayName(authorUid);
 
-    await bookingVersionHistoryService.createVersionSnapshot(
+    await createVersionSnapshot(
       bookingId,
       bookingData as any,
       {
@@ -237,7 +229,7 @@ async function createBulkDeleteSnapshotAsync(options: {
   failureCount?: number;
 }): Promise<void> {
   try {
-    await bookingVersionHistoryService.createBulkOperationSnapshot({
+    await createBulkOperationSnapshot({
       operationType: options.operationType,
       operationDescription: options.operationDescription,
       affectedBookingIds: options.affectedBookingIds,

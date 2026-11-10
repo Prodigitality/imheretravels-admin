@@ -1,9 +1,13 @@
 import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
-import { useAuthStore } from "@/store/auth-store";
-import { bookingVersionHistoryService } from "@/services/booking-version-history-service";
+import {
+  db,
+  doc,
+  getDoc,
+  updateDoc,
+  setDoc,
+} from "@/lib/server-firestore";
+import { createVersionSnapshot, staffDisplayName } from "@/lib/booking-version-history-server";
 import { normalizeBookingFieldValue } from "@/lib/email-normalize";
 
 const COLLECTION_NAME = "bookings";
@@ -54,6 +58,7 @@ export async function PATCH(
 
       // Create version snapshot for new booking creation
       createVersionSnapshotAsync(
+        staff.uid,
         id,
         null,
         newBookingData,
@@ -78,6 +83,7 @@ export async function PATCH(
 
     // Create version snapshot for field update
     createVersionSnapshotAsync(
+      staff.uid,
       id,
       currentBookingData,
       updateData,
@@ -103,6 +109,7 @@ export async function PATCH(
  * Helper: Create version snapshot asynchronously
  */
 async function createVersionSnapshotAsync(
+  authorUid: string,
   bookingId: string,
   currentBooking: Record<string, any> | null,
   updates: Record<string, any>,
@@ -110,12 +117,8 @@ async function createVersionSnapshotAsync(
   customDescription?: string
 ): Promise<void> {
   try {
-    const { user, userProfile } = useAuthStore.getState();
-    const currentUserId = user?.uid || "system";
-    const currentUserName =
-      userProfile?.profile?.firstName && userProfile?.profile?.lastName
-        ? `${userProfile.profile.firstName} ${userProfile.profile.lastName}`
-        : userProfile?.email || user?.email || "System";
+    const currentUserId = authorUid;
+    const currentUserName = await staffDisplayName(authorUid);
 
     // For update operations, get the current state from database
     const docRef = doc(db, COLLECTION_NAME, bookingId);
@@ -126,7 +129,7 @@ async function createVersionSnapshotAsync(
       const description =
         customDescription || `Updated field ${Object.keys(updates).join(", ")}`;
 
-      await bookingVersionHistoryService.createVersionSnapshot(
+      await createVersionSnapshot(
         bookingId,
         bookingData as any,
         {

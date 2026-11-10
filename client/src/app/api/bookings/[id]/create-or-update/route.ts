@@ -1,10 +1,14 @@
 import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import {
+  db,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+} from "@/lib/server-firestore";
+import { createVersionSnapshot, staffDisplayName } from "@/lib/booking-version-history-server";
 import crypto from "crypto";
-import { useAuthStore } from "@/store/auth-store";
-import { bookingVersionHistoryService } from "@/services/booking-version-history-service";
 import { normalizeBookingEmailFields } from "@/lib/email-normalize";
 
 const COLLECTION_NAME = "bookings";
@@ -62,6 +66,7 @@ export async function POST(
 
       // Create version snapshot
       createVersionSnapshotAsync(
+        staff.uid,
         id,
         null,
         newBookingData,
@@ -86,6 +91,7 @@ export async function POST(
 
     // Create version snapshot
     createVersionSnapshotAsync(
+      staff.uid,
       id,
       currentBookingData,
       updateData,
@@ -111,6 +117,7 @@ export async function POST(
  * Helper: Create version snapshot asynchronously
  */
 async function createVersionSnapshotAsync(
+  authorUid: string,
   bookingId: string,
   currentBooking: Record<string, any> | null,
   bookingData: Record<string, any>,
@@ -118,12 +125,8 @@ async function createVersionSnapshotAsync(
   customDescription: string
 ): Promise<void> {
   try {
-    const { user, userProfile } = useAuthStore.getState();
-    const currentUserId = user?.uid || "system";
-    const currentUserName =
-      userProfile?.profile?.firstName && userProfile?.profile?.lastName
-        ? `${userProfile.profile.firstName} ${userProfile.profile.lastName}`
-        : userProfile?.email || user?.email || "System";
+    const currentUserId = authorUid;
+    const currentUserName = await staffDisplayName(authorUid);
 
     // For update operations, get the current state from database
     const docRef = doc(db, COLLECTION_NAME, bookingId);
@@ -132,7 +135,7 @@ async function createVersionSnapshotAsync(
     if (docSnap.exists()) {
       const finalBookingData = { id: bookingId, ...docSnap.data() };
 
-      await bookingVersionHistoryService.createVersionSnapshot(
+      await createVersionSnapshot(
         bookingId,
         finalBookingData as any,
         {

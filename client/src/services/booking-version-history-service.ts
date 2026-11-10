@@ -31,6 +31,23 @@ import {
   BulkOperationOptions,
   BulkOperationMetadata,
 } from "@/types/version-history";
+import {
+  SKIPPED_VERSION,
+  VERSIONS_COLLECTION,
+  buildBulkOperationDoc,
+  buildVersionSnapshotDoc,
+  removeUndefinedValues,
+  sanitizeFieldChanges,
+  sanitizeGridSnapshotForStorage,
+  sanitizeSheetDataForStorage,
+  serializeValueForStorage,
+  type TimestampFactory,
+} from "@/lib/booking-version-snapshot";
+
+const clientTimestamps: TimestampFactory = {
+  now: () => Timestamp.now(),
+  fromDate: (date) => Timestamp.fromDate(date),
+};
 import { SheetData } from "@/types/sheet-management";
 import { bookingService } from "./booking-service";
 
@@ -38,7 +55,6 @@ import { bookingService } from "./booking-service";
 // COLLECTION CONSTANTS
 // ============================================================================
 
-const VERSIONS_COLLECTION = "bookingVersions";
 const BOOKINGS_COLLECTION = "bookings";
 
 // ============================================================================
@@ -283,279 +299,21 @@ class BookingVersionHistoryServiceImpl implements BookingVersionHistoryService {
     columns?: any[] // Optional column definitions for determining data types
   ): Promise<string> {
     try {
-      // console.log("🔍 [VERSION SERVICE] Creating version snapshot:", {
-      //   bookingId,
-      //   changeType: options.changeType,
-      //   description: options.changeDescription,
-      // });
-      // Use a simple counter approach for version numbers to avoid expensive queries
-      // We'll use timestamp + random to ensure uniqueness instead of sequential numbers
-      const versionNumber = Date.now() + Math.floor(Math.random() * 1000);
-      // console.log(
-      //   "🔍 [VERSION SERVICE] Generated version number:",
-      //   versionNumber
-      // );
-
-      // For performance, skip change detection unless explicitly provided
-      let changes = options.changedFields || [];
-
-      // Special handling for "create" change type
-      if (options.changeType === "create" && changes.length === 0) {
-        // console.log(
-        //   "🔍 [VERSION SERVICE] Creating 'Added new row' change for create operation"
-        // );
-
-        // Create a single descriptive change entry for row creation
-        changes = [
-          {
-            fieldPath: "_row_created",
-            fieldName: "Row Created",
-            oldValue: null,
-            newValue: "Added new row",
-            dataType: "string",
-          },
-        ];
-      }
-      // Special handling for "delete" change type
-      else if (options.changeType === "delete" && changes.length === 0) {
-        // console.log(
-        //   "🔍 [VERSION SERVICE] Creating 'Deleted row' change for delete operation"
-        // );
-
-        // Create a single descriptive change entry for row deletion
-        changes = [
-          {
-            fieldPath: "_row_deleted",
-            fieldName: "Row Deleted",
-            oldValue: "Row existed",
-            newValue: null,
-            dataType: "string",
-          },
-        ];
-      }
-      // Special handling for "restore" change type (full replay restore)
-      else if (options.changeType === "restore" && changes.length === 0) {
-        // console.log(
-        //   "🔍 [VERSION SERVICE] Creating 'Restored snapshot' change for restore operation"
-        // );
-
-        changes = [
-          {
-            fieldPath: "_restore_operation",
-            fieldName: "Restore Operation",
-            oldValue: null,
-            newValue:
-              options.changeDescription ||
-              "Restored booking state from history",
-            dataType: "string",
-          },
-        ];
-      }
-      // If we have changed field paths but no detailed changes, create basic field changes
-      else if (
-        changes.length === 0 &&
-        options.changedFieldPaths &&
-        options.changedFieldPaths.length > 0
-      ) {
-        // console.log(
-        //   "🔍 [VERSION SERVICE] Creating field changes from provided paths:",
-        //   options.changedFieldPaths
-        // );
-
-        changes = options.changedFieldPaths.map((fieldPath) => {
-          const newValue = documentSnapshot[fieldPath as keyof SheetData];
-
-          // Determine data type from column definition if available
-          let dataType = "unknown";
-          if (columns && columns.length > 0) {
-            const column = columns.find((col) => col.id === fieldPath);
-            if (column) {
-              dataType = column.dataType || "string";
-            }
-          }
-
-          // If still unknown, try to infer from value
-          if (dataType === "unknown") {
-            if (typeof newValue === "number") dataType = "number";
-            else if (typeof newValue === "boolean") dataType = "boolean";
-            else if (
-              newValue instanceof Date ||
-              (newValue && typeof newValue.toDate === "function")
-            )
-              dataType = "date";
-            else if (typeof newValue === "string") dataType = "string";
-          }
-
-          return {
-            fieldPath: fieldPath,
-            fieldName: fieldPath, // Use fieldPath as fieldName for now
-            oldValue: null, // We don't have old values from batched writer
-            newValue,
-            dataType,
-          };
-        });
-      }
-
-      // Sanitize changes to filter out meaningless changes (null → "", etc.)
-      // This applies to all changes regardless of how they were created
-      changes = this.sanitizeFieldChanges(changes);
-
-      // Skip creating version snapshot for update operations with no actual changes
-      // This prevents creating empty version entries when updates don't modify any fields
-      if (options.changeType === "update" && changes.length === 0) {
-        // console.log(
-        //   `⏭️  [VERSION SERVICE] Skipping version snapshot for booking ${bookingId}: update operation with 0 fields modified (all changes filtered out by sanitizer)`
-        // );
-        // Return a special marker value to indicate the snapshot was skipped
-        // This allows callers to distinguish between skipped and actual version IDs
-        return "__SKIPPED__";
-      }
-
-      // console.log(
-      //   "🔍 [VERSION SERVICE] Using changes:",
-      //   changes.length,
-      //   "fields:",
-      //   changes.map((c) => `${c.fieldName} (${c.dataType})`)
-      // );
-
-      // Generate branch ID (always use main branch for performance)
-      let branchId = `main-${bookingId}`;
-      const parentVersionId: string | undefined = undefined;
-      // console.log(
-      //   "🔍 [VERSION SERVICE] Branch ID:",
-      //   branchId,
-      //   "Parent ID:",
-      //   parentVersionId
-      // );
-
-      // If this is a restore point, create a new branch
-      if (options.isRestorePoint) {
-        branchId = `restore-${Date.now()}-${bookingId}`;
-        // console.log("🔍 [VERSION SERVICE] Creating restore branch:", branchId);
-      }
-
-      // Create branch info
-      const branchInfo: BranchInfo = {
-        isMainBranch: !options.isRestorePoint,
-        branchName: options.isRestorePoint ? "Restored Version" : undefined,
-        branchStartVersionId: options.isRestorePoint
-          ? parentVersionId
-          : undefined,
-        hasChildBranches: false,
-        childBranchIds: [],
-      };
-
-      // Create version snapshot
-      // console.log("🔍 [VERSION SERVICE] Creating version snapshot object");
-
-      const cleanedSnapshot = this.sanitizeSheetDataForStorage(
-        documentSnapshot as SheetData
-      );
-      const gridSnapshotForStorage = this.sanitizeGridSnapshotForStorage(
-        options.gridSnapshot
-      );
-      const previousGridSnapshotForStorage =
-        this.sanitizeGridSnapshotForStorage(options.previousGridSnapshot);
-
-      // console.log("🔍 [VERSION SERVICE] Cleaned snapshot:", {
-      //   originalKeys: Object.keys(documentSnapshot).length,
-      //   cleanedKeys: Object.keys(cleanedSnapshot).length,
-      //   sampleCleanedValues: {
-      //     firstName: cleanedSnapshot.firstName,
-      //     bookingType: cleanedSnapshot.bookingType,
-      //     bookingCode: cleanedSnapshot.bookingCode,
-      //   },
-      //   gridSnapshotCount: gridSnapshotForStorage?.length || 0,
-      //   previousGridSnapshotCount: previousGridSnapshotForStorage?.length || 0,
-      // });
-
-      // Create the base version snapshot object without undefined fields
-      const versionSnapshot: any = {
+      // Built in lib/booking-version-snapshot, shared with the API routes'
+      // firebase-admin writer, so both write the same document.
+      const versionDoc = buildVersionSnapshotDoc(
         bookingId,
-        versionNumber,
-        branchId,
-        documentSnapshot: cleanedSnapshot,
-        metadata: {
-          createdAt: Timestamp.now(),
-          createdBy: options.userId,
-          createdByName: options.userName,
-          changeType: options.changeType,
-          changeDescription: options.changeDescription,
-          isRestorePoint: options.isRestorePoint || false,
-        },
-        changes,
-        branchInfo: {
-          isMainBranch: branchInfo.isMainBranch,
-          hasChildBranches: branchInfo.hasChildBranches,
-          childBranchIds: branchInfo.childBranchIds,
-        },
-      };
-
-      if (gridSnapshotForStorage && gridSnapshotForStorage.length > 0) {
-        versionSnapshot.gridSnapshot = gridSnapshotForStorage;
-      }
-
-      if (
-        previousGridSnapshotForStorage &&
-        previousGridSnapshotForStorage.length > 0
-      ) {
-        versionSnapshot.previousGridSnapshot = previousGridSnapshotForStorage;
-      }
-
-      // Only include optional fields if they have values (not undefined)
-      if (parentVersionId !== undefined) {
-        versionSnapshot.parentVersionId = parentVersionId;
-      }
-
-      if (options.restoredFromVersionId !== undefined) {
-        versionSnapshot.metadata.restoredFromVersionId =
-          options.restoredFromVersionId;
-      }
-
-      if (branchInfo.branchName !== undefined) {
-        versionSnapshot.branchInfo.branchName = branchInfo.branchName;
-      }
-
-      if (branchInfo.branchStartVersionId !== undefined) {
-        versionSnapshot.branchInfo.branchStartVersionId =
-          branchInfo.branchStartVersionId;
-      }
-      // console.log("🔍 [VERSION SERVICE] Version snapshot object created:", {
-      //   bookingId: versionSnapshot.bookingId,
-      //   versionNumber: versionSnapshot.versionNumber,
-      //   branchId: versionSnapshot.branchId,
-      //   changesCount: versionSnapshot.changes.length,
-      // });
-
-      // Add to Firestore
-      // console.log(
-      //   "🔍 [VERSION SERVICE] Adding to Firestore collection:",
-      //   VERSIONS_COLLECTION
-      // );
-
-      // Remove any undefined values recursively to prevent Firestore errors
-      const cleanVersionSnapshot = this.removeUndefinedValues(versionSnapshot);
-
-      // Log the complete object being sent to Firestore for debugging
-      // console.log(
-      //   "🔍 [VERSION SERVICE] Complete version snapshot being saved:",
-      //   JSON.stringify(cleanVersionSnapshot, null, 2)
-      // );
-
+        documentSnapshot,
+        options,
+        clientTimestamps,
+        columns
+      );
+      // Updates that changed nothing are not recorded.
+      if (versionDoc === SKIPPED_VERSION) return SKIPPED_VERSION;
       const docRef = await addDoc(
         collection(db, VERSIONS_COLLECTION),
-        cleanVersionSnapshot
+        versionDoc
       );
-      // console.log("🔍 [VERSION SERVICE] Document added with ID:", docRef.id);
-
-      // Update parent version to mark it has child branches (if this is a restore)
-      if (options.isRestorePoint && parentVersionId) {
-        await this.updateParentBranchInfo(parentVersionId, docRef.id);
-      }
-
-      // console.log(
-      //   `✅ Created version snapshot ${docRef.id} for booking ${bookingId} (v${versionNumber})`
-      // );
       return docRef.id;
     } catch (error) {
       console.error(
@@ -1531,144 +1289,28 @@ class BookingVersionHistoryServiceImpl implements BookingVersionHistoryService {
    * Note: Synthetic change markers (starting with "_") are never filtered out
    */
   private sanitizeFieldChanges(changes: FieldChange[]): FieldChange[] {
-    return changes.filter((change) => {
-      const { fieldPath, oldValue, newValue, dataType } = change;
-
-      // Never filter out synthetic change markers (e.g., _row_created, _row_deleted, _bulk_operation)
-      if (fieldPath.startsWith("_")) {
-        return true;
-      }
-
-      // Skip changes where oldValue is null/undefined and newValue is empty string
-      // This is not a meaningful change (field didn't exist → field is empty)
-      // Check the actual value type, not just dataType (computed/function fields may have dataType "function" but string values)
-      if (
-        (oldValue === null || oldValue === undefined) &&
-        typeof newValue === "string" &&
-        newValue === ""
-      ) {
-        // console.log(
-        //   `🧹 [SANITIZER] Filtering out meaningless change: ${fieldPath} (${oldValue} → "${newValue}") [dataType: ${dataType}]`
-        // );
-        return false;
-      }
-
-      // Keep all other changes
-      return true;
-    });
+    return sanitizeFieldChanges(changes);
   }
 
   /**
    * Remove undefined values from an object recursively
    */
   private removeUndefinedValues(obj: any): any {
-    if (obj === null || obj === undefined) {
-      return obj;
-    }
-
-    if (Array.isArray(obj)) {
-      return obj.map((item) => this.removeUndefinedValues(item));
-    }
-
-    if (typeof obj === "object") {
-      const cleaned: any = {};
-      for (const [key, value] of Object.entries(obj)) {
-        if (value !== undefined) {
-          cleaned[key] = this.removeUndefinedValues(value);
-        }
-      }
-      return cleaned;
-    }
-
-    return obj;
+    return removeUndefinedValues(obj);
   }
 
   private serializeValueForStorage(value: any): any {
-    if (value === undefined) {
-      return undefined;
-    }
-
-    if (value === null) {
-      return null;
-    }
-
-    if (value instanceof Date) {
-      return Timestamp.fromDate(value);
-    }
-
-    if (
-      value &&
-      typeof value === "object" &&
-      (typeof value.toDate === "function" ||
-        typeof value.toMillis === "function")
-    ) {
-      return value;
-    }
-
-    if (Array.isArray(value)) {
-      return value
-        .map((item) => this.serializeValueForStorage(item))
-        .filter((item) => item !== undefined);
-    }
-
-    if (typeof value === "object") {
-      const serialized: Record<string, any> = {};
-      Object.keys(value).forEach((key) => {
-        const serializedValue = this.serializeValueForStorage(
-          (value as any)[key]
-        );
-        if (serializedValue !== undefined) {
-          serialized[key] = serializedValue;
-        }
-      });
-      return serialized;
-    }
-
-    return value;
+    return serializeValueForStorage(value, clientTimestamps);
   }
 
   private sanitizeSheetDataForStorage(data: SheetData): Record<string, any> {
-    const clone: Record<string, any> = { ...data };
-
-    if (clone._versionInfo) {
-      delete clone._versionInfo;
-    }
-
-    if (clone._originalRow) {
-      delete clone._originalRow;
-    }
-
-    const cleaned: Record<string, any> = {};
-
-    Object.keys(clone).forEach((key) => {
-      const serializedValue = this.serializeValueForStorage(clone[key]);
-
-      if (serializedValue !== undefined) {
-        cleaned[key] = serializedValue;
-      }
-    });
-
-    return cleaned;
+    return sanitizeSheetDataForStorage(data, clientTimestamps);
   }
 
   private sanitizeGridSnapshotForStorage(
     rows?: SheetData[]
   ): SheetData[] | undefined {
-    if (!rows) {
-      return undefined;
-    }
-
-    return rows
-      .map((row, index) => {
-        const sanitized = this.sanitizeSheetDataForStorage(row);
-
-        if (!sanitized.id) {
-          sanitized.id = row.id || `grid-row-${index}`;
-        }
-
-        return sanitized as SheetData;
-      })
-      .filter((row) => !!row.id);
+    return sanitizeGridSnapshotForStorage(rows, clientTimestamps);
   }
 
   private async updateParentBranchInfo(
@@ -2388,106 +2030,10 @@ class BookingVersionHistoryServiceImpl implements BookingVersionHistoryService {
     options: BulkOperationOptions
   ): Promise<string> {
     try {
-      console.log("🔍 [BULK VERSION] Creating bulk operation snapshot:", {
-        operationType: options.operationType,
-        totalCount: options.totalCount,
-        affectedBookingIds: options.affectedBookingIds.slice(0, 5), // Log first 5 IDs
-      });
-
-      // Use a timestamp-based version number for bulk operations
-      const versionNumber = Date.now() + Math.floor(Math.random() * 1000);
-
-      // Create a synthetic booking ID for bulk operations
-      const bulkBookingId = `bulk_${options.operationType}_${Date.now()}`;
-
-      // Generate branch ID for bulk operations
-      const branchId = `bulk-${options.operationType}-${Date.now()}`;
-
-      // Create changes array for bulk operation
-      const changes: FieldChange[] = [
-        {
-          fieldPath: "_bulk_operation",
-          fieldName: "Bulk Operation",
-          oldValue: null,
-          newValue: `${options.operationType}: ${options.operationDescription}`,
-          dataType: "string",
-        },
-      ];
-
-      // Create synthetic document snapshot for bulk operation
-      const documentSnapshot: SheetData = {
-        id: bulkBookingId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        // Add bulk operation metadata
-        _bulkOperation: {
-          type: options.operationType,
-          description: options.operationDescription,
-          totalCount: options.totalCount,
-          successCount: options.successCount || 0,
-          failureCount: options.failureCount || 0,
-          affectedBookingIds: options.affectedBookingIds,
-        },
-      } as SheetData;
-
-      // Create branch info for bulk operation
-      const branchInfo: BranchInfo = {
-        isMainBranch: true, // Bulk operations are part of main timeline
-        branchName: `Bulk ${options.operationType}`,
-        hasChildBranches: false,
-        childBranchIds: [],
-      };
-
-      // Create the bulk operation metadata
-      const bulkOperationMetadata: BulkOperationMetadata = {
-        createdAt: Timestamp.now(),
-        createdBy: options.userId,
-        createdByName: options.userName,
-        changeType:
-          options.operationType === "delete"
-            ? "bulk_delete"
-            : options.operationType === "import"
-            ? "bulk_import"
-            : "bulk_update",
-        changeDescription: options.operationDescription,
-        isRestorePoint: false,
-        bulkOperation: {
-          operationType: options.operationType,
-          totalCount: options.totalCount,
-          successCount: options.successCount || 0,
-          failureCount: options.failureCount || 0,
-          affectedBookingIds: options.affectedBookingIds,
-        },
-      };
-
-      // Create version snapshot for bulk operation
-      const versionSnapshot: any = {
-        bookingId: bulkBookingId,
-        versionNumber,
-        branchId,
-        documentSnapshot,
-        metadata: bulkOperationMetadata,
-        changes,
-        branchInfo,
-      };
-
-      // Remove any undefined values recursively
-      const cleanVersionSnapshot = this.removeUndefinedValues(versionSnapshot);
-
-      // console.log(
-      //   "🔍 [BULK VERSION] Complete bulk operation snapshot:",
-      //   JSON.stringify(cleanVersionSnapshot, null, 2)
-      // );
-
-      // Add to Firestore
       const docRef = await addDoc(
         collection(db, VERSIONS_COLLECTION),
-        cleanVersionSnapshot
+        buildBulkOperationDoc(options, clientTimestamps)
       );
-
-      // console.log(
-      //   `✅ Created bulk operation snapshot ${docRef.id} for ${options.operationType} operation affecting ${options.totalCount} bookings`
-      // );
       return docRef.id;
     } catch (error) {
       console.error(

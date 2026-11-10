@@ -1,7 +1,7 @@
 import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
 import {
+  db,
   doc,
   getDoc,
   updateDoc,
@@ -11,9 +11,8 @@ import {
   where,
   getDocs,
   writeBatch,
-} from "firebase/firestore";
-import { useAuthStore } from "@/store/auth-store";
-import { bookingVersionHistoryService } from "@/services/booking-version-history-service";
+} from "@/lib/server-firestore";
+import { createVersionSnapshot, staffDisplayName } from "@/lib/booking-version-history-server";
 import { normalizeBookingEmailFields } from "@/lib/email-normalize";
 
 const COLLECTION_NAME = "bookings";
@@ -98,7 +97,7 @@ export async function PATCH(
     console.log(`✅ Updated booking ${id}`);
 
     // Create version snapshot asynchronously
-    createVersionSnapshotAsync(id, currentBookingData, updates, "update");
+    createVersionSnapshotAsync(staff.uid, id, currentBookingData, updates, "update");
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -144,14 +143,10 @@ export async function DELETE(
 
     // Create version snapshot BEFORE deletion
     try {
-      const { user, userProfile } = useAuthStore.getState();
-      const currentUserId = user?.uid || "system";
-      const currentUserName =
-        userProfile?.profile?.firstName && userProfile?.profile?.lastName
-          ? `${userProfile.profile.firstName} ${userProfile.profile.lastName}`
-          : userProfile?.email || user?.email || "System";
+      const currentUserId = staff.uid;
+      const currentUserName = await staffDisplayName(staff.uid);
 
-      await bookingVersionHistoryService.createVersionSnapshot(
+      await createVersionSnapshot(
         id,
         currentBooking as any,
         {
@@ -238,18 +233,15 @@ async function cleanupScheduledEmails(bookingId: string): Promise<void> {
  * Helper: Create version snapshot asynchronously
  */
 async function createVersionSnapshotAsync(
+  authorUid: string,
   bookingId: string,
   currentBooking: Record<string, any>,
   updates: Record<string, any>,
   changeType: "create" | "update" | "delete"
 ): Promise<void> {
   try {
-    const { user, userProfile } = useAuthStore.getState();
-    const currentUserId = user?.uid || "system";
-    const currentUserName =
-      userProfile?.profile?.firstName && userProfile?.profile?.lastName
-        ? `${userProfile.profile.firstName} ${userProfile.profile.lastName}`
-        : userProfile?.email || user?.email || "System";
+    const currentUserId = authorUid;
+    const currentUserName = await staffDisplayName(authorUid);
 
     // For update operations, get the current state from database
     const docRef = doc(db, COLLECTION_NAME, bookingId);
@@ -260,7 +252,7 @@ async function createVersionSnapshotAsync(
       const description = `Updated ${Object.keys(updates).join(", ")}`;
 
       const versionId =
-        await bookingVersionHistoryService.createVersionSnapshot(
+        await createVersionSnapshot(
           bookingId,
           bookingData as any,
           {

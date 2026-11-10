@@ -1,9 +1,13 @@
 import { requireStaff } from "@/lib/require-staff";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { doc, getDoc, deleteDoc, setDoc } from "firebase/firestore";
-import { useAuthStore } from "@/store/auth-store";
-import { bookingVersionHistoryService } from "@/services/booking-version-history-service";
+import {
+  db,
+  doc,
+  getDoc,
+  deleteDoc,
+  setDoc,
+} from "@/lib/server-firestore";
+import { createVersionSnapshot, staffDisplayName } from "@/lib/booking-version-history-server";
 
 const COLLECTION_NAME = "bookings";
 
@@ -54,6 +58,7 @@ export async function POST(
     // Create version snapshot before clearing fields
     const currentBookingWithId = { id, ...currentData };
     createVersionSnapshotAsync(
+      staff.uid,
       id,
       currentBookingWithId,
       preservedFields,
@@ -87,6 +92,7 @@ export async function POST(
  * Helper: Create version snapshot asynchronously
  */
 async function createVersionSnapshotAsync(
+  authorUid: string,
   bookingId: string,
   currentBooking: Record<string, any>,
   preservedFields: Record<string, any>,
@@ -94,14 +100,10 @@ async function createVersionSnapshotAsync(
   customDescription: string
 ): Promise<void> {
   try {
-    const { user, userProfile } = useAuthStore.getState();
-    const currentUserId = user?.uid || "system";
-    const currentUserName =
-      userProfile?.profile?.firstName && userProfile?.profile?.lastName
-        ? `${userProfile.profile.firstName} ${userProfile.profile.lastName}`
-        : userProfile?.email || user?.email || "System";
+    const currentUserId = authorUid;
+    const currentUserName = await staffDisplayName(authorUid);
 
-    await bookingVersionHistoryService.createVersionSnapshot(
+    await createVersionSnapshot(
       bookingId,
       currentBooking as any,
       {
