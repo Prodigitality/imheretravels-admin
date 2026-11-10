@@ -58,7 +58,6 @@ export {
 
 // Import auth functions for pre-authentication
 import {
-  signInWithEmailAndPassword as firebaseSignIn,
   onAuthStateChanged as firebaseOnAuthStateChanged,
 } from "firebase/auth";
 
@@ -99,43 +98,13 @@ import {
 
 import { ref as storageRef } from "firebase/storage";
 
-// Admin credentials for pre-authentication
-const ADMIN_EMAIL = "admin@imheretravels.com";
-const ADMIN_PASSWORD = "admin123$";
-
-// Pre-authentication state
-let isPreAuthenticated = false;
-let preAuthPromise: Promise<void> | null = null;
-
-// Pre-authenticate with admin credentials
+// Column functions run as the signed-in staff member. This used to sign in
+// with a shared account whose credentials were in this file (and so in the
+// browser bundle), which also replaced the real user's session when it ran
+// before Firebase restored it. Now it only waits for the session to restore.
 async function preAuthenticate(): Promise<void> {
-  if (isPreAuthenticated || preAuthPromise) {
-    return preAuthPromise || Promise.resolve();
-  }
-
-  preAuthPromise = (async () => {
-    try {
-      // Check if already authenticated
-      if (auth.currentUser) {
-        isPreAuthenticated = true;
-        return;
-      }
-
-      // Sign in with admin credentials
-      await firebaseSignIn(auth, ADMIN_EMAIL, ADMIN_PASSWORD);
-      isPreAuthenticated = true;
-      console.log("Pre-authenticated with admin credentials");
-    } catch (error) {
-      console.error("Pre-authentication failed:", error);
-      // Don't throw error, just log it - functions should still work
-    }
-  })();
-
-  return preAuthPromise;
+  await auth.authStateReady();
 }
-
-// Initialize pre-authentication
-preAuthenticate();
 
 // Utility functions for common operations
 export const firebaseUtils = {
@@ -156,8 +125,6 @@ export const firebaseUtils = {
 
   // Force re-authentication
   reAuthenticate: async () => {
-    isPreAuthenticated = false;
-    preAuthPromise = null;
     await preAuthenticate();
   },
 
