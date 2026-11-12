@@ -396,7 +396,9 @@ function SlotRow({
       <TableCell className="tabular-nums">{tier}</TableCell>
       <TableCell className="whitespace-nowrap tabular-nums">
         <div className="font-semibold">{formatGBP(slot.salePrice)}</div>
-        <div className="text-xs text-muted-foreground">−{formatGBP(slot.discountGBP)}</div>
+        <div className="text-xs text-muted-foreground">
+          −{slot.discountPct ? `${slot.discountPct}%` : formatGBP(slot.discountGBP)}
+        </div>
       </TableCell>
       <TableCell>
         <Badge variant="outline" className={cn("whitespace-nowrap", meta.className)}>

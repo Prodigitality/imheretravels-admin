@@ -76,3 +76,12 @@ describe("isSaleOpen", () => {
     expect(isSaleOpen({ status: "paused", startAtMs: null, endAtMs: null }, NOW)).toBe(false);
   });
 });
+
+describe("discount model", () => {
+  it("defaults anything unknown to tiered", async () => {
+    const { parseDiscountModel } = await import("./slots");
+    expect(parseDiscountModel(undefined)).toEqual({ type: "tiered" });
+    expect(parseDiscountModel({ type: "percent", percent: 0 })).toEqual({ type: "tiered" });
+    expect(parseDiscountModel({ type: "percent", percent: 20 })).toEqual({ type: "percent", percent: 20 });
+  });
+});

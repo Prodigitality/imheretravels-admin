@@ -75,7 +75,15 @@ export async function initSaleReservationPayment(opts: {
     .sort((a, b) => a.index - b.index)
     .map((s) => {
       const discountGBP = typeof s.discountGBP === "number" ? s.discountGBP : Math.max(0, s.originalPrice - s.salePrice);
-      return { index: s.index, discountGBP, originalPrice: priced.datePrice, salePrice: slotPrice(priced.datePrice, discountGBP) };
+      // A percent slot takes its % off this date's price; a £ slot its fixed £.
+      const dated = slotPrice(priced.datePrice, { discountGBP, discountPct: s.discountPct });
+      return {
+        index: s.index,
+        discountGBP: dated.discountGBP,
+        ...(s.discountPct ? { discountPct: s.discountPct } : {}),
+        originalPrice: priced.datePrice,
+        salePrice: dated.salePrice,
+      };
     });
   const amountPence = Math.round(amountGBP * 100);
 

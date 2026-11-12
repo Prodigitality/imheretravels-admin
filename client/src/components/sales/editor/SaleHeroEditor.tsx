@@ -27,7 +27,8 @@ interface SaleHeroEditorProps {
   isDraft: boolean;
   startAt: string | null;
   endAt: string | null;
-  upTo: number;
+  /** "20% off" / "Up to £500 off", as www shows it; null before any discount. */
+  offerLabel: string | null;
   hasTours: boolean;
   /** www shows the first tour's cover (desktop only) when there's no banner. */
   fallbackImage?: string;
@@ -39,7 +40,7 @@ interface SaleHeroEditorProps {
 
 /** The sale page hero, editable in place. Mirrors www `SaleHero`. */
 export default function SaleHeroEditor(props: SaleHeroEditorProps) {
-  const { title, subtitle, bannerUrl, mobileBannerUrl, onChange, statusText, phase, isDraft, startAt, endAt, upTo, hasTours, fallbackImage, mode, onModeChange, uploading, onUpload } = props;
+  const { title, subtitle, bannerUrl, mobileBannerUrl, onChange, statusText, phase, isDraft, startAt, endAt, offerLabel, hasTours, fallbackImage, mode, onModeChange, uploading, onUpload } = props;
   const mobile = mode === "mobile";
   const live = phase === "live";
   const countdown =
@@ -144,12 +145,10 @@ export default function SaleHeroEditor(props: SaleHeroEditorProps) {
                 />
               </div>
 
-              {upTo > 0 ? (
-                <p className={cn("mt-2 font-display text-h3-mobile tabular-nums text-light-red", !mobile && "md:text-h3-desktop")}>
-                  Up to {formatGBP(upTo)} off
-                </p>
+              {offerLabel ? (
+                <p className={cn("mt-2 font-display text-h3-mobile tabular-nums text-light-red", !mobile && "md:text-h3-desktop")}>{offerLabel}</p>
               ) : (
-                <p className="mt-2 font-body text-xs text-white/70">“Up to £X off” appears once a slot has a discount.</p>
+                <p className="mt-2 font-body text-xs text-white/70">“Up to £X off” (or “X% off”) appears once a slot has a discount.</p>
               )}
 
               <div className="mt-4 max-w-xl">

@@ -4,6 +4,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { Timestamp, type DocumentData, type DocumentSnapshot } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin-db";
 import type { SaleEvent, SaleInventory, SaleSlot } from "@/types/sale-events";
+import { parseDiscountModel } from "./slots";
 
 /**
  * Sale collections are written only through firebase-admin (they are denied
@@ -58,6 +59,7 @@ export function serializeSale(snap: DocumentSnapshot<DocumentData>): SaleEvent {
   const d = snap.data() ?? {};
   return {
     id: snap.id,
+    discountModel: parseDiscountModel(d.discountModel),
     slug: d.slug ?? "",
     name: d.name ?? "",
     status: d.status ?? "draft",

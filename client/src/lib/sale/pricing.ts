@@ -2,7 +2,7 @@
 // (customOriginal) when it has one, otherwise the tour's original price.
 // Pure — shared by the claim, availability, payment and the admin editor.
 
-import { salePriceFor } from "./slots";
+import { slotDiscountGBP, slotSalePrice, type SlotDiscount } from "./slots";
 
 export interface RawTravelDate {
   startDate?: unknown;
@@ -65,7 +65,7 @@ export function tourPriceInfo(
   };
 }
 
-/** Sale price for one slot on a given date price. */
-export function slotPrice(datePriceGBP: number, discountGBP: number): number {
-  return salePriceFor(datePriceGBP, discountGBP);
+/** Sale price for one slot on a given date price, and the £ it takes off. */
+export function slotPrice(datePriceGBP: number, slot: SlotDiscount): { discountGBP: number; salePrice: number } {
+  return { discountGBP: slotDiscountGBP(datePriceGBP, slot), salePrice: slotSalePrice(datePriceGBP, slot) };
 }

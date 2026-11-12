@@ -68,6 +68,7 @@ import { getNationalityOptions } from "./utils/nationalityUtils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import "react-phone-number-input/style.css";
 import { isValidPhoneNumber } from "react-phone-number-input";
+import { slotSalePrice } from "@/lib/sale/slots";
 
 const Page = () => {
   const DEBUG = true;
@@ -420,8 +421,9 @@ const Page = () => {
           .sort((a, b) => a.index - b.index)
           .map((s) => {
             if (saleDatePrice == null) return s.salePrice;
-            const discount = s.discountGBP ?? Math.max(0, s.originalPrice - s.salePrice);
-            return Math.max(0, Math.round((saleDatePrice - discount) * 100) / 100);
+            const discountGBP = s.discountGBP ?? Math.max(0, s.originalPrice - s.salePrice);
+            // A percent slot takes its % off this date's price (same rule as init-payment).
+            return slotSalePrice(saleDatePrice, { discountGBP, discountPct: s.discountPct });
           })
       : null;
 

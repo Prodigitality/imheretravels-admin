@@ -50,8 +50,21 @@ describe("date-based sale pricing", () => {
   });
 
   it("slot price = date price − discount, never below 0", () => {
-    expect(slotPrice(1899, 400)).toBe(1499);
-    expect(slotPrice(300, 500)).toBe(0);
+    expect(slotPrice(1899, { discountGBP: 400 })).toEqual({ discountGBP: 400, salePrice: 1499 });
+    expect(slotPrice(300, { discountGBP: 500 }).salePrice).toBe(0);
     expect(travelDateKey(at("2027-01-31T01:00:00Z"))).toBe("2027-01-31");
+  });
+});
+
+describe("percent slots", () => {
+  it("take the % off each date's own price, in whole pounds", () => {
+    const slot = { discountGBP: 290, discountPct: 20 };
+    expect(slotPrice(1449, slot)).toEqual({ discountGBP: 290, salePrice: 1159 });
+    // A pricier date gets a bigger £ discount; the stored £ is ignored.
+    expect(slotPrice(1999, slot)).toEqual({ discountGBP: 400, salePrice: 1599 });
+  });
+
+  it("fall back to the fixed £ when no % is set", () => {
+    expect(slotPrice(1999, { discountGBP: 250, discountPct: null })).toEqual({ discountGBP: 250, salePrice: 1749 });
   });
 });

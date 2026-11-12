@@ -66,7 +66,7 @@ export default function SaleOfferPrompt({
         <AlertDialogHeader>
           <AlertDialogTitle>{dateLabel(tourDate)} is in our {offer.saleName}</AlertDialogTitle>
           <AlertDialogDescription>
-            Save up to {gbp(offer.discountGBP)} on this date.{" "}
+            {offer.discountPct ? `Save ${offer.discountPct}%` : `Save up to ${gbp(offer.discountGBP)}`} on this date.{" "}
             {offer.left === 1 ? "1 sale place is" : `${offer.left} sale places are`} left. Sale dates are booked
             at the sale price: you&apos;ll hold your place on the tour page, then come back here to finish.
           </AlertDialogDescription>

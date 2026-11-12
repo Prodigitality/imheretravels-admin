@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ExternalLink,
 import { cn } from "@/lib/utils";
 import type { TourPackage } from "@/types/tours";
 import { MAX_SLOTS, formatGBP, numOrNaN } from "../sale-utils";
+import { slotSalePrice } from "@/lib/sale/slots";
 import { FieldInput, HelpText, LockTip, PanelSectionHead } from "./fields";
 import SaleDrawer from "./SaleDrawer";
 import {
@@ -21,6 +22,7 @@ import {
   totalSlots,
   tourView,
   withDateIncluded,
+  type DraftModel,
   type DraftTour,
   type Inventory,
   type TourView,
@@ -38,6 +40,7 @@ const TIER_LOCKED = "This tier has held or sold slots";
 
 /** Side editor for one sale tour: the linked tour (read-only) and its price tiers. */
 export default function SaleTourDrawer({
+  model,
   tour,
   tourPkg,
   inventory,
@@ -50,6 +53,8 @@ export default function SaleTourDrawer({
   onRemove,
   onClose,
 }: {
+  /** The sale's discount model (Settings). */
+  model: DraftModel;
   tour: DraftTour | null;
   tourPkg?: TourPackage;
   inventory: Inventory;
@@ -69,7 +74,11 @@ export default function SaleTourDrawer({
       onOpenChange={(o) => !o && onClose()}
       icon={Package}
       title={view ? `Edit deal · ${view.name}` : "Edit deal"}
-      description="1 slot = 1 person. Tier 1 sells first, then tier 2, and so on."
+      description={
+        model.type === "percent"
+          ? `1 slot = 1 person. Every slot is ${Number.isFinite(model.percent) ? `${model.percent}%` : "the sale's %"} off the travel date's price.`
+          : "1 slot = 1 person. Tier 1 sells first, then tier 2, and so on."
+      }
       footer={
         tour && (
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -101,12 +110,13 @@ export default function SaleTourDrawer({
         )
       }
     >
-      {tour && view && <TourEditorBody tour={tour} tourPkg={tourPkg} view={view} inventory={inventory} now={now} onPatch={onPatch} />}
+      {tour && view && <TourEditorBody model={model} tour={tour} tourPkg={tourPkg} view={view} inventory={inventory} now={now} onPatch={onPatch} />}
     </SaleDrawer>
   );
 }
 
 function TourEditorBody({
+  model,
   tour: t,
   tourPkg,
   view,
@@ -114,6 +124,7 @@ function TourEditorBody({
   now,
   onPatch,
 }: {
+  model: DraftModel;
   tour: DraftTour;
   tourPkg?: TourPackage;
   view: TourView;
@@ -132,6 +143,7 @@ function TourEditorBody({
   const tiersPatch = (next: DraftTour["tiers"]) => onPatch({ tiers: next });
   const dates = saleDateRows(t, tourPkg, now);
   const datesIn = dates.filter((d) => d.included).length;
+  const pct = model.type === "percent" && Number.isFinite(model.percent) ? model.percent : null;
 
   return (
     <div className="flex flex-col gap-7">
@@ -173,8 +185,11 @@ function TourEditorBody({
           </dl>
         </div>
         <HelpText className="mt-3">
-          Name, cover and price come from the tour package and update automatically. Sale price = the tour&apos;s current price minus the tier&apos;s discount. Sold slots keep the
-          price they sold at.
+          Name, cover and price come from the tour package and update automatically.{" "}
+          {model.type === "percent"
+            ? "Sale price = each travel date's price minus the sale's percentage (Settings → Discount model)."
+            : "Sale price = the tour's current price minus the tier's discount."}{" "}
+          Sold slots keep the price they sold at.
         </HelpText>
         {t.notes.length > 0 && (
           <div className="mt-4 rounded-md border-2 border-vivid-orange/60 bg-light-yellow/40 p-3">
@@ -219,7 +234,14 @@ function TourEditorBody({
                     <span className={cn("font-medium tabular-nums", !d.included && "text-dark-gray")}>{d.label}</span>
                     <span className="ml-auto flex items-center gap-3 text-xs tabular-nums text-dark-gray">
                       {!d.included && <span className="font-bold text-midnight">Not on sale</span>}
-                      {formatGBP(d.price)}
+                      {d.included && pct !== null ? (
+                        <>
+                          <span className="line-through">{formatGBP(d.price)}</span>
+                          <span className="font-bold text-midnight">{formatGBP(slotSalePrice(d.price, { discountGBP: 0, discountPct: pct }))}</span>
+                        </>
+                      ) : (
+                        formatGBP(d.price)
+                      )}
                     </span>
                   </label>
                 </li>
@@ -242,6 +264,9 @@ function TourEditorBody({
         )}
       </section>
 
+      {model.type === "percent" ? (
+        <PercentSlots model={model} tour={t} inventory={inventory} now={now} original={original} onPatch={onPatch} />
+      ) : (
       <section aria-labelledby={`${t.key}-tiers-head`}>
         <PanelSectionHead id={`${t.key}-tiers-head`}>Price tiers</PanelSectionHead>
         <p className="mb-3 flex items-start gap-2 rounded-md bg-light-grey/70 px-3 py-2 font-body text-xs text-midnight">
@@ -423,6 +448,87 @@ function TourEditorBody({
         )}
         <HelpText className="mt-3">“Add tier” copies the last tier&apos;s discount with 1 slot. Tiers with held or sold slots, and the slots before them, can&apos;t be reshaped.</HelpText>
       </section>
+      )}
     </div>
+  );
+}
+
+/** Percent sale: the tour only has a slot count; every slot gets the sale's %. */
+function PercentSlots({
+  model,
+  tour: t,
+  inventory,
+  now,
+  original,
+  onPatch,
+}: {
+  model: Extract<DraftModel, { type: "percent" }>;
+  tour: DraftTour;
+  inventory: Inventory;
+  now: number;
+  original: number;
+  onPatch: (patch: Partial<DraftTour>) => void;
+}) {
+  const [lock] = tierLocks(t, (pos) => isLockedAt(inventory, t.tourPackageId, pos, now), model);
+  const [p] = previewTiers(inventory, t, original, now, model);
+  const minCount = lock?.minCount ?? 1;
+  const setCount = (n: number) => onPatch({ slotCount: Math.min(MAX_SLOTS, Math.max(minCount, n)) });
+  const valid = Number.isFinite(model.percent);
+  return (
+    <section aria-labelledby={`${t.key}-slots-head`}>
+      <PanelSectionHead id={`${t.key}-slots-head`}>Slots</PanelSectionHead>
+      <p className="mb-3 flex items-start gap-2 rounded-md bg-light-grey/70 px-3 py-2 font-body text-xs text-midnight">
+        <Users className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+        <span>
+          <span className="font-bold">1 slot = 1 person.</span> Every slot is {valid ? `${model.percent}%` : "the sale's %"} off the price of the travel date the customer picks.
+          Change the % in Settings → Discount model; it applies to every tour.
+        </span>
+      </p>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <LockTip show={!!lock?.locked && t.slotCount <= minCount} text="Can't drop below the held/sold slots">
+          <div className="flex items-center gap-1" role="group" aria-label="Number of slots">
+            <button type="button" className={ICON_BTN} disabled={t.slotCount <= minCount} onClick={() => setCount(t.slotCount - 1)} aria-label="One slot fewer">
+              <Minus className="h-3.5 w-3.5" aria-hidden />
+            </button>
+            <FieldInput
+              type="number"
+              inputMode="numeric"
+              min={minCount}
+              max={MAX_SLOTS}
+              step={1}
+              value={t.slotCount}
+              onChange={(e) => {
+                const n = Math.floor(Number(e.target.value));
+                if (Number.isFinite(n)) setCount(n);
+              }}
+              aria-label="Number of slots"
+              className="h-9 w-16 px-2 text-center"
+            />
+            <button type="button" className={ICON_BTN} disabled={t.slotCount >= MAX_SLOTS} onClick={() => setCount(t.slotCount + 1)} aria-label="One more slot">
+              <Plus className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </div>
+        </LockTip>
+        <div className="font-body text-sm tabular-nums text-midnight">
+          {p?.salePrice != null ? (
+            <>
+              <span className="font-bold">{formatGBP(p.salePrice)}</span> per person
+              <span className="text-dark-gray">
+                {" "}
+                from {formatGBP(original)} (−{formatGBP(p.discount ?? 0)})
+              </span>
+            </>
+          ) : (
+            <span className={ERROR}>Set the discount % in Settings</span>
+          )}
+          {p && <span className="block text-xs text-dark-gray">{tierStatusLine(p)}</span>}
+        </div>
+      </div>
+      <p className="mt-3 font-sans text-sm font-bold tabular-nums text-midnight" role="status" aria-live="polite">
+        {t.slotCount} slot{t.slotCount === 1 ? "" : "s"} = up to {t.slotCount} {t.slotCount === 1 ? "person" : "people"}
+        <span className="font-body text-xs font-normal text-dark-gray"> · max {MAX_SLOTS}</span>
+      </p>
+      <HelpText className="mt-3">Held and sold slots keep the price they were taken at, so the count can&apos;t go below the last of them.</HelpText>
+    </section>
   );
 }

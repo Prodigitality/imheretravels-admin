@@ -9,10 +9,15 @@
 // Tier 2: 2 slots at −£300 … — and expands tiers back to the flat ladder on
 // save. The tour's name, slug, cover and price always come from the tour
 // package, so the editor never edits them.
+//
+// The sale's discount model (Settings) decides which of those applies:
+// "tiered" is the price tiers above; "percent" gives every slot of every tour
+// the same % off the travel date's price, so a tour only has a slot count.
 
 import { tourPriceInfo } from "@/lib/sale/pricing";
+import { MAX_DISCOUNT_PERCENT, slotDiscountGBP, slotSalePrice, type SlotDiscount } from "@/lib/sale/slots";
 import type { SaleInput, SaleWithInventory } from "@/services/sale-events-service";
-import type { SaleCheckoutMode, SaleSlot, SaleStatus } from "@/types/sale-events";
+import type { SaleCheckoutMode, SaleDiscountModel, SaleSlot, SaleStatus } from "@/types/sale-events";
 import type { TourPackage } from "@/types/tours";
 import {
   MAX_SLOTS,
@@ -22,7 +27,6 @@ import {
   isSlotLocked,
   localInputToIso,
   numOrNaN,
-  salePriceFor,
   slotDisplayStatus,
   type CsvTourGroup,
   type PriceTier,
@@ -52,13 +56,15 @@ export function tiersToLadder(tiers: PriceTier[]): number[] {
 }
 
 /** Tier number (1-based) for each slot index (1-based) of a saved ladder. */
-export function tierOfSlot(slots: Pick<SaleSlot, "index" | "discountGBP">[]): Map<number, number> {
+export function tierOfSlot(slots: Pick<SaleSlot, "index" | "discountGBP" | "discountPct">[]): Map<number, number> {
   const out = new Map<number, number>();
   let tier = 0;
-  let prev: number | undefined;
+  let prev: string | undefined;
   for (const s of [...slots].sort((a, b) => a.index - b.index)) {
-    if (prev === undefined || s.discountGBP !== prev) tier++;
-    prev = s.discountGBP;
+    // Percent slots group by their %, whatever £ that came to.
+    const key = s.discountPct ? `${s.discountPct}%` : `£${s.discountGBP}`;
+    if (prev === undefined || key !== prev) tier++;
+    prev = key;
     out.set(s.index, tier);
   }
   return out;
@@ -81,8 +87,10 @@ export interface DraftTour {
   tourPackageId: string;
   /** Last known tour data (from the saved sale), used if the tour isn't in the loaded list. */
   saved: { name: string; slug: string; coverImage?: string; originalPrice: number };
-  /** Price tiers in sale order: tier 1's slots sell first. */
+  /** Tiered sales: price tiers in sale order; tier 1's slots sell first. */
   tiers: DraftTier[];
+  /** Percent sales: how many slots (people) the tour has. */
+  slotCount: number;
   /** Travel dates left out of the sale, as date keys. */
   excludedDates: string[];
   /** CSV import notes for this tour. */
@@ -111,6 +119,10 @@ export interface SaleDraft {
   /** Extra links, one per line. */
   redirectSlugs: string;
   fallbackUrl: string;
+  /** Settings → Discount model. */
+  discountType: SaleDiscountModel["type"];
+  /** Percent off every slot, as typed (used when discountType is "percent"). */
+  discountPercent: string;
   tours: DraftTour[];
 }
 
@@ -121,21 +133,68 @@ export interface UnmatchedGroup {
   reason?: string;
 }
 
+/** Slots a tour starts with in a percent sale. */
+export const DEFAULT_PERCENT_SLOTS = 10;
+export const DEFAULT_PERCENT = 20;
+
+/** The draft's discount model. `percent` is NaN while the field isn't a whole 1–99. */
+export type DraftModel = { type: "tiered" } | { type: "percent"; percent: number };
+export const TIERED: DraftModel = { type: "tiered" };
+
+export function parsePercent(raw: string): number {
+  const n = numOrNaN(raw);
+  return Number.isInteger(n) && n >= 1 && n <= MAX_DISCOUNT_PERCENT ? n : NaN;
+}
+
+export const draftModel = (d: Pick<SaleDraft, "discountType" | "discountPercent">): DraftModel =>
+  d.discountType === "percent" ? { type: "percent", percent: parsePercent(d.discountPercent) } : TIERED;
+
+/**
+ * The tour's discount runs in sale order: its price tiers, or in a percent
+ * sale one run of all its slots at the sale's %. `discount` is null when not
+ * entered (or invalid) yet.
+ */
+export function discountRuns(t: DraftTour, m: DraftModel = TIERED): { discount: SlotDiscount | null; count: number }[] {
+  if (m.type === "percent") {
+    return [{ discount: Number.isFinite(m.percent) ? { discountGBP: 0, discountPct: m.percent } : null, count: t.slotCount }];
+  }
+  return t.tiers.map((x) => {
+    const n = numOrNaN(x.discount);
+    return { discount: Number.isFinite(n) && n >= 0 ? { discountGBP: n } : null, count: x.count };
+  });
+}
+
+/**
+ * Switches the draft's discount model. Each tour keeps its number of slots:
+ * going to percent, the slot count is the tiers' total; going back to tiered,
+ * the tiers are kept if they still add up, else one tier covers the slots.
+ */
+export function withDiscountType(d: SaleDraft, type: SaleDraft["discountType"]): SaleDraft {
+  if (type === d.discountType) return d;
+  const tours = d.tours.map((t) => {
+    if (type === "percent") return { ...t, slotCount: Math.max(1, totalSlots(t)) };
+    if (totalSlots(t) === t.slotCount) return t;
+    return { ...t, tiers: [newTier(t.tiers[0]?.discount ?? "", t.slotCount)] };
+  });
+  return { ...d, discountType: type, discountPercent: d.discountPercent.trim() ? d.discountPercent : String(DEFAULT_PERCENT), tours };
+}
+
 export const SEO_TITLE_MAX = 70;
 export const SEO_DESCRIPTION_MAX = 200;
 
 const toDraftTiers = (tiers: PriceTier[]): DraftTier[] => tiers.map((t) => ({ key: newKey(), discount: String(t.discount), count: t.count }));
 const newTier = (discount = "", count = 1): DraftTier => ({ key: newKey(), discount, count });
 
-export const totalSlots = (t: DraftTour) => t.tiers.reduce((n, x) => n + (Number.isInteger(x.count) && x.count > 0 ? x.count : 0), 0);
+export const totalSlots = (t: DraftTour, m: DraftModel = TIERED) =>
+  m.type === "percent" ? t.slotCount : t.tiers.reduce((n, x) => n + (Number.isInteger(x.count) && x.count > 0 ? x.count : 0), 0);
 
 /** One discount (as typed) per slot, tier 1 first. */
 export const flatDiscounts = (t: DraftTour): string[] => t.tiers.flatMap((x) => Array.from({ length: Math.max(0, x.count) }, () => x.discount));
 
-/** 0-based slot positions [start, end) covered by each tier. */
-export function tierRanges(t: DraftTour): { start: number; end: number }[] {
+/** 0-based slot positions [start, end) covered by each tier (one run in a percent sale). */
+export function tierRanges(t: DraftTour, m: DraftModel = TIERED): { start: number; end: number }[] {
   let pos = 0;
-  return t.tiers.map((x) => {
+  return discountRuns(t, m).map((x) => {
     const start = pos;
     pos += Math.max(0, x.count);
     return { start, end: pos };
@@ -223,13 +282,17 @@ export function draftFromSale(sale: SaleWithInventory): SaleDraft {
     ogImage: sale.seo?.ogImage ?? "",
     redirectSlugs: (sale.redirectSlugs ?? []).join("\n"),
     fallbackUrl: sale.fallbackUrl ?? "",
+    discountType: sale.discountModel?.type ?? "tiered",
+    discountPercent: String(sale.discountModel?.type === "percent" ? sale.discountModel.percent : DEFAULT_PERCENT),
     tours: sale.tours.map((t) => {
+      // A percent slot's discountGBP is its £ at the "from" price: a fair start if the sale goes back to tiers.
       const ladder = [...(sale.inventory[t.tourPackageId]?.slots ?? [])].sort((a, b) => a.index - b.index).map((s) => s.discountGBP);
       return {
         key: newKey(),
         tourPackageId: t.tourPackageId,
         saved: { name: t.tourName || t.displayName, slug: t.tourSlug, coverImage: t.coverImage, originalPrice: t.originalPrice },
         tiers: ladder.length ? toDraftTiers(ladderToTiers(ladder)) : [newTier()],
+        slotCount: ladder.length || DEFAULT_PERCENT_SLOTS,
         excludedDates: t.excludedDates ?? [],
         notes: [],
       };
@@ -257,6 +320,8 @@ export function newSaleDraft(isFirstSale: boolean): SaleDraft {
     ogImage: "",
     redirectSlugs: "",
     fallbackUrl: "",
+    discountType: "tiered",
+    discountPercent: String(DEFAULT_PERCENT),
     tours: [],
   };
 }
@@ -267,6 +332,7 @@ export function draftFromTour(tour: TourPackage, csv?: CsvTourGroup): DraftTour 
     tourPackageId: tour.id,
     saved: { name: tour.name ?? "", slug: tour.slug ?? "", coverImage: tour.media?.coverImage || undefined, originalPrice: Number(tour.pricing?.original) || 0 },
     tiers: csv?.tiers.length ? toDraftTiers(csv.tiers) : [newTier()],
+    slotCount: csv?.tiers.length ? Math.min(MAX_SLOTS, csv.tiers.reduce((n, x) => n + x.count, 0)) : DEFAULT_PERCENT_SLOTS,
     excludedDates: [],
     notes: [],
   };
@@ -275,7 +341,11 @@ export function draftFromTour(tour: TourPackage, csv?: CsvTourGroup): DraftTour 
 /** Comparable form of a draft, for the unsaved-changes check (ignores React keys and notes). */
 export function draftSnapshot(d: SaleDraft): string {
   const { tours, slugTouched: _touched, ...rest } = d;
-  return JSON.stringify([rest, tours.map((t) => [t.tourPackageId, t.tiers.map((x) => [x.discount, x.count]), t.excludedDates])]);
+  // Only the active model's shape counts: tiers in a tiered sale, the slot count in a percent one.
+  return JSON.stringify([
+    rest,
+    tours.map((t) => [t.tourPackageId, d.discountType === "percent" ? t.slotCount : t.tiers.map((x) => [x.discount, x.count]), t.excludedDates]),
+  ]);
 }
 
 // ---------------------------------------------------------------------------
@@ -307,8 +377,8 @@ export interface TierLock {
  * server, so any edit that would change the discount at a locked index, or
  * shift a locked slot to another index, is refused.
  */
-export function tierLocks(t: DraftTour, locked: (pos: number) => boolean): TierLock[] {
-  const ranges = tierRanges(t);
+export function tierLocks(t: DraftTour, locked: (pos: number) => boolean, m: DraftModel = TIERED): TierLock[] {
+  const ranges = tierRanges(t, m);
   const lastLockedPos = ranges.map(({ start, end }) => {
     let last = -1;
     for (let p = start; p < end; p++) if (locked(p)) last = p;
@@ -325,7 +395,10 @@ export type PublicSlotState = "available" | "on_hold" | "sold";
 
 export interface PreviewSlot {
   index: number;
+  /** £ off at the tour's "from" price. */
   discount: number | null;
+  /** Percent slot: its %. */
+  discountPct: number | null;
   salePrice: number | null;
   state: PublicSlotState;
   locked: boolean;
@@ -336,17 +409,19 @@ export interface PreviewSlot {
  * priced from the tour's current price (as the server does); sold slots keep
  * the price they sold at; held slots keep their discount.
  */
-export function previewSlots(inv: Inventory, t: DraftTour, originalPrice: number, now: number): PreviewSlot[] {
-  return flatDiscounts(t).map((value, pos) => {
+export function previewSlots(inv: Inventory, t: DraftTour, originalPrice: number, now: number, m: DraftModel = TIERED): PreviewSlot[] {
+  const perSlot = discountRuns(t, m).flatMap((r) => Array.from({ length: Math.max(0, r.count) }, () => r.discount));
+  return perSlot.map((typed, pos) => {
     const saved = invSlot(inv, t.tourPackageId, pos);
     const st = saved ? slotDisplayStatus(saved, now) : "available";
     const locked = isSlotLocked(saved, now);
-    const disc = numOrNaN(value);
-    const discount = locked && saved ? saved.discountGBP : Number.isFinite(disc) ? disc : null;
-    const salePrice = st === "sold" && saved ? saved.salePrice : discount !== null ? salePriceFor(originalPrice, discount) : null;
+    // Held/sold slots keep the discount they were taken at, whatever the sale's model is now.
+    const d = locked && saved ? saved : typed;
+    const salePrice = st === "sold" && saved ? saved.salePrice : d ? slotSalePrice(originalPrice, d) : null;
     return {
       index: pos + 1,
-      discount,
+      discount: d ? slotDiscountGBP(originalPrice, d) : null,
+      discountPct: d?.discountPct || null,
       salePrice,
       state: st === "sold" ? "sold" : st === "held" || st === "paying" ? "on_hold" : "available",
       locked,
@@ -357,7 +432,10 @@ export function previewSlots(inv: Inventory, t: DraftTour, originalPrice: number
 export interface PreviewTier {
   /** 1-based tier number. */
   tier: number;
+  /** £ off at the tour's "from" price. */
   discount: number | null;
+  /** Percent sale: the %. */
+  discountPct: number | null;
   count: number;
   /** Price a new booking in this tier pays, per person. */
   salePrice: number | null;
@@ -370,17 +448,18 @@ export interface PreviewTier {
 }
 
 /** Per-tier view of the ladder with live slot counts. */
-export function previewTiers(inv: Inventory, t: DraftTour, originalPrice: number, now: number): PreviewTier[] {
-  const slots = previewSlots(inv, t, originalPrice, now);
-  return tierRanges(t).map(({ start, end }, i) => {
+export function previewTiers(inv: Inventory, t: DraftTour, originalPrice: number, now: number, m: DraftModel = TIERED): PreviewTier[] {
+  const slots = previewSlots(inv, t, originalPrice, now, m);
+  const runs = discountRuns(t, m);
+  return tierRanges(t, m).map(({ start, end }, i) => {
     const mine = slots.slice(start, end);
-    const disc = numOrNaN(t.tiers[i].discount);
-    const discount = Number.isFinite(disc) ? disc : null;
+    const d = runs[i].discount;
     return {
       tier: i + 1,
-      discount,
+      discount: d ? slotDiscountGBP(originalPrice, d) : null,
+      discountPct: d?.discountPct || null,
       count: end - start,
-      salePrice: discount === null ? null : salePriceFor(originalPrice, discount),
+      salePrice: d ? slotSalePrice(originalPrice, d) : null,
       free: mine.filter((s) => s.state === "available").length,
       held: mine.filter((s) => s.state === "on_hold").length,
       sold: mine.filter((s) => s.state === "sold").length,
@@ -404,6 +483,14 @@ export function maxDiscount(d: SaleDraft): number {
     if (Number.isFinite(n) && x.count > 0) max = Math.max(max, n);
   }
   return max;
+}
+
+/** The hero's offer line, as www shows it: "20% off" or "Up to £500 off". Null with no discount yet. */
+export function heroOfferLabel(d: SaleDraft): string | null {
+  const m = draftModel(d);
+  if (m.type === "percent") return Number.isFinite(m.percent) && d.tours.length ? `${m.percent}% off` : null;
+  const max = maxDiscount(d);
+  return max > 0 ? `Up to ${formatGBP(max)} off` : null;
 }
 
 /** Tier numbers (1-based) whose discount is the whole price or more, so they'd sell at £0. */
@@ -475,7 +562,8 @@ export function applyCsvGroup(
     }
     notes.push("Held/sold slots kept their current discount");
   }
-  return tours.map((t) => (t.key === existing.key ? { ...t, tiers, notes } : t));
+  const slotCount = Math.min(MAX_SLOTS, tiers.reduce((n, x) => n + x.count, 0));
+  return tours.map((t) => (t.key === existing.key ? { ...t, tiers, slotCount, notes } : t));
 }
 
 // ---------------------------------------------------------------------------
@@ -538,21 +626,26 @@ export function toSaleInput(
   if (d.seoDescription.length > SEO_DESCRIPTION_MAX) err("seo", `SEO description is over ${SEO_DESCRIPTION_MAX} characters`);
   if (d.status === "live" && d.tours.length === 0) err("tours", "Add at least one tour before setting the sale live");
   if (opts.unmatched) err("tours", `Pick or skip the ${opts.unmatched} unmatched CSV tour(s)`);
+  const model = draftModel(d);
+  const percentSale = model.type === "percent";
+  if (percentSale && !Number.isFinite(model.percent)) err("settings", `Discount must be a whole percent from 1 to ${MAX_DISCOUNT_PERCENT}`);
 
   const tours = d.tours.map((t, i) => {
     const pkg = opts.tourById.get(t.tourPackageId);
     const view = tourView(t, pkg);
     const label = view.name || `Tour ${i + 1}`;
     if (opts.toursLoaded && !pkg) err("tours", `${label}: this tour no longer exists in Tour Packages. Remove it from the sale.`);
+    const dates = saleDateRows(t, pkg);
+    if (dates.length > 0 && dates.every((d) => !d.included)) err("tours", `${label}: keep at least one tour date in the sale`);
+    const total = totalSlots(t, model);
+    if (!Number.isInteger(total) || total < 1 || total > MAX_SLOTS) err("tours", `${label}: has ${total} slots; a tour can have 1 to ${MAX_SLOTS}`);
+    if (percentSale) return { tourPackageId: t.tourPackageId, order: i, slots: total, excludedDates: t.excludedDates };
+
     if (t.tiers.some((x) => !Number.isInteger(x.count) || x.count < 1)) err("tours", `${label}: every tier needs at least 1 slot`);
-    const total = totalSlots(t);
-    if (total < 1 || total > MAX_SLOTS) err("tours", `${label}: has ${total} slots; a tour can have 1 to ${MAX_SLOTS}`);
     const tierDiscounts = t.tiers.map((x) => numOrNaN(x.discount));
     if (tierDiscounts.some((n) => !Number.isFinite(n) || n < 0)) err("tours", `${label}: enter a discount (£0 or more) for every tier`);
     const free = freeTiers(t, view.originalPrice);
     if (free.length) warnings.push(`${label}: tier ${numberList(free)} would sell at £0 (discount ≥ ${formatGBP(view.originalPrice)})`);
-    const dates = saleDateRows(t, pkg);
-    if (dates.length > 0 && dates.every((d) => !d.included)) err("tours", `${label}: keep at least one tour date in the sale`);
     const ladder = tiersToLadder(t.tiers.map((x, j) => ({ discount: tierDiscounts[j], count: x.count })));
     return { tourPackageId: t.tourPackageId, order: i, ladder, excludedDates: t.excludedDates };
   });
@@ -578,6 +671,7 @@ export function toSaleInput(
       seo: { title: d.seoTitle.trim(), description: d.seoDescription.trim(), ogImage: d.ogImage.trim() },
       redirectSlugs,
       fallbackUrl,
+      discountModel: model.type === "percent" ? { type: "percent", percent: model.percent } : { type: "tiered" },
       tours,
     },
   };

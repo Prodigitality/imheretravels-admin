@@ -18,6 +18,10 @@ import {
   toSaleInput,
   newSaleDraft,
   withDateIncluded,
+  withDiscountType,
+  draftModel,
+  heroOfferLabel,
+  previewSlots,
   type DraftTour,
 } from "./sale-draft";
 
@@ -210,5 +214,70 @@ describe("toSaleInput", () => {
     expect(res.input).toBeNull();
     expect(res.errors.map((e) => e.message).join()).toMatch(/21 slots/);
     expect(res.warnings.join()).toMatch(/tier 1 would sell at £0/);
+  });
+});
+
+describe("percent discount model", () => {
+  const opts = (price = 1449) => ({ unmatched: 0, otherSlugs: [], tourById: new Map([["A", tour("A", price)]]), toursLoaded: true });
+  const tiered = () => {
+    const t = draftFromTour(tour("A", 1449));
+    t.tiers = [
+      { key: "a", discount: "250", count: 1 },
+      { key: "b", discount: "200", count: 2 },
+      { key: "c", discount: "150", count: 3 },
+      { key: "d", discount: "75", count: 4 },
+    ];
+    return { ...newSaleDraft(false), name: "BFS", slug: "bfs", tours: [t] };
+  };
+
+  it("switching to percent keeps each tour's slot count and defaults to 20%", () => {
+    const d = withDiscountType(tiered(), "percent");
+    expect(d.discountType).toBe("percent");
+    expect(d.discountPercent).toBe("20");
+    expect(d.tours[0].slotCount).toBe(10);
+  });
+
+  it("saves the model and a slot count per tour (no ladder)", () => {
+    const { input, errors } = toSaleInput(withDiscountType(tiered(), "percent"), opts());
+    expect(errors).toEqual([]);
+    expect(input?.discountModel).toEqual({ type: "percent", percent: 20 });
+    expect(input?.tours[0]).toMatchObject({ tourPackageId: "A", slots: 10 });
+    expect(input?.tours[0].ladder).toBeUndefined();
+  });
+
+  it("previews every slot at 20% off the from price, in whole pounds", () => {
+    const d = withDiscountType(tiered(), "percent");
+    const m = draftModel(d);
+    const slots = previewSlots(undefined, d.tours[0], 1449, Date.now(), m);
+    expect(slots).toHaveLength(10);
+    expect(new Set(slots.map((s) => s.salePrice))).toEqual(new Set([1159]));
+    expect(slots[0]).toMatchObject({ discount: 290, discountPct: 20 });
+    expect(heroOfferLabel(d)).toBe("20% off");
+  });
+
+  it("refuses a percent that isn't a whole 1–99", () => {
+    for (const bad of ["", "0", "100", "12.5"]) {
+      const { errors } = toSaleInput({ ...withDiscountType(tiered(), "percent"), discountPercent: bad }, opts());
+      expect(errors.map((e) => e.area)).toContain("settings");
+    }
+  });
+
+  it("switching back to tiered keeps the tiers when the slot count didn't change", () => {
+    const back = withDiscountType(withDiscountType(tiered(), "percent"), "tiered");
+    expect(back.tours[0].tiers.map((x) => [x.discount, x.count])).toEqual([["250", 1], ["200", 2], ["150", 3], ["75", 4]]);
+    const changed = withDiscountType({ ...withDiscountType(tiered(), "percent"), tours: [{ ...withDiscountType(tiered(), "percent").tours[0], slotCount: 6 }] }, "tiered");
+    expect(changed.tours[0].tiers.map((x) => [x.discount, x.count])).toEqual([["250", 6]]);
+  });
+
+  it("only the active model's shape counts for unsaved changes", () => {
+    const d = withDiscountType(tiered(), "percent");
+    const edited = { ...d, tours: [{ ...d.tours[0], tiers: [] }] };
+    expect(draftSnapshot(edited)).toBe(draftSnapshot(d));
+    expect(draftSnapshot({ ...d, tours: [{ ...d.tours[0], slotCount: 9 }] })).not.toBe(draftSnapshot(d));
+  });
+
+  it("groups saved percent slots into one tier for the tracker", () => {
+    const slots = [1, 2, 3].map((index) => ({ index, discountGBP: 290 + index, discountPct: 20 }));
+    expect([...tierOfSlot(slots).values()]).toEqual([1, 1, 1]);
   });
 });

@@ -8,7 +8,13 @@ import { CharCount, FieldInput, FieldLabel, FieldTextarea, HelpText, PanelSectio
 import SaleDrawer from "./SaleDrawer";
 import { SchedulePanel } from "./SaleEditorToolbar";
 import { BannerSlot } from "./SaleHeroEditor";
-import { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX, type SaleDraft } from "./sale-draft";
+import { MAX_DISCOUNT_PERCENT } from "@/lib/sale/slots";
+import { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX, draftModel, type SaleDraft } from "./sale-draft";
+
+const DISCOUNT_OPTIONS: [SaleDraft["discountType"], string, string][] = [
+  ["tiered", "Price tiers (£ off)", "Each tour has tiers of slots with their own £ discount. Slot 1 is the cheapest, then the price steps up."],
+  ["percent", "Percentage off every slot", "Every slot of every tour is the same % off the travel date's price, e.g. 20% off all 10 slots."],
+];
 
 const CHECKOUT_OPTIONS: [SaleCheckoutMode, string, string][] = [
   ["auto", "Automatic (Stripe)", "The customer pays the reservation fee by card in the reservation form."],
@@ -20,6 +26,8 @@ export default function SaleSettingsPanel({
   onClose,
   draft,
   onChange,
+  onDiscountTypeChange,
+  hasLockedSlots,
   onSlugChange,
   savedSlug,
   otherSlugs,
@@ -32,6 +40,9 @@ export default function SaleSettingsPanel({
   onClose: () => void;
   draft: SaleDraft;
   onChange: (patch: Partial<SaleDraft>) => void;
+  onDiscountTypeChange: (type: SaleDraft["discountType"]) => void;
+  /** The sale has held or sold slots: they keep the price they were taken at. */
+  hasLockedSlots: boolean;
   onSlugChange: (slug: string) => void;
   savedSlug: string | null;
   otherSlugs: string[];
@@ -52,6 +63,8 @@ export default function SaleSettingsPanel({
   const shareImage = draft.ogImage.trim() || draft.bannerUrl.trim() || draft.tours[0]?.saved.coverImage;
   const shareFallback = !draft.ogImage.trim() ? (draft.bannerUrl.trim() ? "Using the desktop banner" : shareImage ? "Using the first tour's cover" : "No image") : null;
   const previewLink = previewToken ? salePreviewUrl(previewToken) : null;
+  const model = draftModel(draft);
+  const percentInvalid = model.type === "percent" && !Number.isFinite(model.percent);
 
   return (
     <SaleDrawer open={open} onOpenChange={(o) => !o && onClose()} icon={Settings} title="Sale settings" description="Dates, URL, booking rules, search & sharing">
@@ -140,6 +153,73 @@ export default function SaleSettingsPanel({
                 Sends visitors here from the sale page while it&apos;s Draft or Ended. Start with / or https://. Leave blank to show the 404 or Sale ended page.
               </HelpText>
             </div>
+          </div>
+        </section>
+
+        {/* ── Discount model ── */}
+        <section aria-labelledby="set-discount">
+          <PanelSectionHead id="set-discount">Discount model</PanelSectionHead>
+          <div className="flex flex-col gap-4">
+            <fieldset className="flex flex-col gap-2">
+              <legend className="sr-only">How slots are discounted</legend>
+              {DISCOUNT_OPTIONS.map(([value, title, desc]) => (
+                <label
+                  key={value}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-lg border-2 p-3 transition-colors focus-within:ring-2 focus-within:ring-crimson-red/30",
+                    draft.discountType === value ? "border-crimson-red bg-crimson-red/5" : "border-dark-gray/40 hover:border-midnight",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="discount-model"
+                    value={value}
+                    checked={draft.discountType === value}
+                    onChange={() => onDiscountTypeChange(value)}
+                    className="mt-1 size-4 accent-crimson-red"
+                  />
+                  <span className="flex flex-col gap-0.5">
+                    <span className="font-sans text-sm font-bold text-midnight">{title}</span>
+                    <span className="font-body text-xs text-dark-gray">{desc}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+            {draft.discountType === "percent" && (
+              <div className="flex flex-col gap-1.5">
+                <FieldLabel htmlFor="set-percent" required>
+                  Discount on every slot
+                </FieldLabel>
+                <div className="relative w-32">
+                  <FieldInput
+                    id="set-percent"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={MAX_DISCOUNT_PERCENT}
+                    step={1}
+                    value={draft.discountPercent}
+                    onChange={(e) => onChange({ discountPercent: e.target.value })}
+                    aria-invalid={percentInvalid}
+                    aria-describedby="set-percent-help"
+                    className="pr-9"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-body text-sm font-bold text-midnight" aria-hidden>
+                    %
+                  </span>
+                </div>
+                <HelpText id="set-percent-help">
+                  A whole number from 1 to {MAX_DISCOUNT_PERCENT}. It comes off each travel date&apos;s own price, rounded to the nearest pound (20% of £1,449 = £290 off, so
+                  £1,159). Set how many slots each tour has in its deal.
+                </HelpText>
+              </div>
+            )}
+            {hasLockedSlots && (
+              <p className="flex items-start gap-1.5 font-body text-xs text-[#9A4A00]">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                Held and sold slots keep the price they were taken at. A change here applies to free slots when you save.
+              </p>
+            )}
           </div>
         </section>
 

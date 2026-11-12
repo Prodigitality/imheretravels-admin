@@ -42,8 +42,16 @@ export interface SaleTour {
   order: number;
 }
 
+/**
+ * How the sale discounts slots. tiered: a £ discount per slot (price tiers).
+ * percent: every slot is `percent`% off the travel date's price.
+ */
+export type SaleDiscountModel = { type: "tiered" } | { type: "percent"; percent: number };
+
 export interface SaleEvent {
   id: string;
+  /** Missing on sales saved before this setting existed: tiered. */
+  discountModel: SaleDiscountModel;
   slug: string;
   name: string;
   status: SaleStatus;
@@ -71,7 +79,10 @@ export type SlotStatus = "available" | "held" | "paying" | "sold";
 
 export interface SaleSlot {
   index: number; // 1-based position on the ladder
+  /** £ off. For a percent slot: the £ at the tour's "from" price (the real £ depends on the date). */
   discountGBP: number;
+  /** Percent slot: this % comes off the travel date's price. */
+  discountPct?: number | null;
   salePrice: number;
   status: SlotStatus;
   holdId?: string | null;
@@ -106,8 +117,11 @@ export interface SaleHoldView {
   tourName: string;
   displayName: string;
   partySize: number;
-  /** salePrice/originalPrice are "from" prices until a date is chosen; discountGBP is fixed. */
-  slots: { index: number; salePrice: number; originalPrice: number; discountGBP?: number; paymentLinkUrl?: string | null }[];
+  /**
+   * salePrice/originalPrice are "from" prices until a date is chosen. discountGBP
+   * is fixed, unless discountPct is set: then that % comes off the date's price.
+   */
+  slots: { index: number; salePrice: number; originalPrice: number; discountGBP?: number; discountPct?: number | null; paymentLinkUrl?: string | null }[];
   /** Travel dates this hold can't be used on; fixed at claim, like its prices. */
   excludedDates: string[];
   status: HoldStatus;
@@ -123,7 +137,7 @@ export type PublicSlotState = "available" | "on_hold" | "sold";
 
 export interface PublicTourAvailability {
   tourPackageId: string;
-  slots: { index: number; salePrice: number; discountGBP: number; state: PublicSlotState }[];
+  slots: { index: number; salePrice: number; discountGBP: number; discountPct?: number | null; state: PublicSlotState }[];
   left: number;
   onHold: number;
   nextPrice: number | null;

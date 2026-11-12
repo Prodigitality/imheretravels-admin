@@ -5,7 +5,18 @@ import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
 import { adminDb } from "@/lib/firebase-admin-db";
 import type { PublicSaleAvailability, SaleEvent, SaleInventory } from "@/types/sale-events";
-import { MAX_PARTY_SIZE, MAX_SLOTS, effectiveStatus, isSaleOpen, publicState, salePriceFor } from "./slots";
+import {
+  MAX_DISCOUNT_PERCENT,
+  MAX_PARTY_SIZE,
+  MAX_SLOTS,
+  effectiveStatus,
+  isSaleOpen,
+  publicState,
+  slotDiscountGBP,
+  slotSalePrice,
+  type DiscountModel,
+  type SlotDiscount,
+} from "./slots";
 import { tourPriceInfo } from "./pricing";
 import { SaleError } from "./holds";
 import {
@@ -39,8 +50,10 @@ export const SaleTourInput = z.object({
   originalPrice: z.number().nonnegative().optional(),
   coverImage: z.string().max(2000).optional(),
   order: z.number().int().nonnegative(),
-  /** Discount £ per slot, slot 1 first. 1 slot = 1 person. */
-  ladder: z.array(z.number().nonnegative()).min(1).max(MAX_SLOTS),
+  /** Tiered sales: discount £ per slot, slot 1 first. 1 slot = 1 person. */
+  ladder: z.array(z.number().nonnegative()).min(1).max(MAX_SLOTS).optional(),
+  /** Percent sales: how many slots (people) the tour has; each gets the sale's %. */
+  slots: z.number().int().min(1).max(MAX_SLOTS).optional(),
   /** Date keys left out of the sale. */
   excludedDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(200).default([]),
 });
@@ -100,7 +113,24 @@ export const SaleInput = z.object({
     .default({}),
   redirectSlugs: z.array(z.string().min(1).max(80).regex(/^[a-z0-9-]+$/)).max(10).default([]),
   fallbackUrl: z.string().max(500).regex(/^(\/(?!\/)|https:\/\/)/).or(z.literal("")).default(""),
+  discountModel: z
+    .discriminatedUnion("type", [
+      z.object({ type: z.literal("tiered") }),
+      z.object({ type: z.literal("percent"), percent: z.number().int().min(1).max(MAX_DISCOUNT_PERCENT) }),
+    ])
+    .default({ type: "tiered" }),
   tours: z.array(SaleTourInput).max(60),
+}).superRefine((s, ctx) => {
+  s.tours.forEach((t, i) => {
+    const ok = s.discountModel.type === "percent" ? t.slots !== undefined : t.ladder !== undefined;
+    if (!ok) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["tours", i, s.discountModel.type === "percent" ? "slots" : "ladder"],
+        message: s.discountModel.type === "percent" ? "A percent sale needs a slot count per tour" : "A tiered sale needs a ladder per tour",
+      });
+    }
+  });
 });
 export type SaleInputT = z.infer<typeof SaleInput>;
 
@@ -151,7 +181,12 @@ export async function getSale(saleId: string): Promise<SaleWithInventory | null>
         d.id,
         base === undefined
           ? i
-          : { ...i, slots: i.slots.map((sl) => (sl.status === "sold" ? sl : { ...sl, salePrice: salePriceFor(base, sl.discountGBP) })) },
+          : {
+              ...i,
+              slots: i.slots.map((sl) =>
+                sl.status === "sold" ? sl : { ...sl, discountGBP: slotDiscountGBP(base, sl), salePrice: slotSalePrice(base, sl) },
+              ),
+            },
       ];
     }),
   );
@@ -175,8 +210,10 @@ export interface SaleOffer {
   saleSlug: string;
   tourSlug: string;
   left: number;
-  /** Discount on the next free slot, in GBP. */
+  /** Discount on the next free slot, in GBP (at the tour's "from" price for a percent slot). */
   discountGBP: number;
+  /** Percent sale: the next free slot is this % off the date's price. */
+  discountPct: number | null;
   /** The tour's dates left out of the sale (date keys): regular price only. */
   excludedDates: string[];
 }
@@ -206,6 +243,7 @@ export async function findSaleOffer(tourPackageId: string, dateKey?: string): Pr
       tourSlug: sale.tours.find((t) => t.tourPackageId === tourPackageId)?.tourSlug ?? "",
       left: tour.left,
       discountGBP: next.discountGBP,
+      discountPct: next.discountPct ?? null,
       excludedDates: listed.excludedDates ?? [],
     };
   }
@@ -225,6 +263,7 @@ function publicAvailabilityOf(saleId: string, sale: SaleWithInventory): PublicSa
         index: s.index,
         salePrice: s.salePrice,
         discountGBP: s.discountGBP,
+        ...(s.discountPct ? { discountPct: s.discountPct } : {}),
         state: publicState(s, now),
       }));
       const free = pub.filter((s) => s.state === "available");
@@ -283,6 +322,7 @@ export async function saveSale(saleId: string | null, input: SaleInputT, uid: st
     seo: Object.fromEntries(Object.entries(input.seo).filter(([, v]) => typeof v === "string" && v.trim() !== "")),
     redirectSlugs: input.redirectSlugs,
     fallbackUrl: input.fallbackUrl,
+    discountModel: input.discountModel,
     hero,
     tours,
     updatedAt: FieldValue.serverTimestamp(),
@@ -295,7 +335,7 @@ export async function saveSale(saleId: string | null, input: SaleInputT, uid: st
   await ref.set(fields, { mergeFields: Object.keys(fields) });
 
   for (const t of input.tours) {
-    await syncLadder(ref.id, t.tourPackageId, facts.get(t.tourPackageId)!.originalPrice, t.ladder);
+    await syncLadder(ref.id, t.tourPackageId, facts.get(t.tourPackageId)!.originalPrice, ladderFor(input.discountModel, t));
   }
 
   // A tour dropped from the sale keeps its inventory only if something was sold or is held.
@@ -310,12 +350,21 @@ export async function saveSale(saleId: string | null, input: SaleInputT, uid: st
   return ref.id;
 }
 
+/** One discount per slot, slot 1 first, for the sale's discount model. */
+export function ladderFor(model: DiscountModel, t: { ladder?: number[]; slots?: number }): SlotDiscount[] {
+  if (model.type === "percent") {
+    return Array.from({ length: t.slots ?? 0 }, () => ({ discountGBP: 0, discountPct: model.percent }));
+  }
+  return (t.ladder ?? []).map((discountGBP) => ({ discountGBP, discountPct: null }));
+}
+
 /**
  * Applies a new discount ladder to a tour's inventory without touching slot
  * state: held and sold slots keep their price snapshot (the hold already
- * captured it), and only free trailing slots can be removed.
+ * captured it), and only free trailing slots can be removed. Switching the
+ * sale's discount model only reprices free slots, the same way.
  */
-async function syncLadder(saleId: string, tourPackageId: string, originalPrice: number, ladder: number[]) {
+async function syncLadder(saleId: string, tourPackageId: string, originalPrice: number, ladder: SlotDiscount[]) {
   const db = adminDb();
   await db.runTransaction(async (tx) => {
     const iRef = inventoryRef(saleId, tourPackageId);
@@ -323,10 +372,15 @@ async function syncLadder(saleId: string, tourPackageId: string, originalPrice: 
     const now = Date.now();
     const current = storedSlotsWithMs(inv.get("slots"));
     const next: StoredSlot[] = [];
-    ladder.forEach((discountGBP, i) => {
+    ladder.forEach((d, i) => {
       const index = i + 1;
       const existing = current.find((s) => s.index === index);
-      const priced = { discountGBP, salePrice: salePriceFor(originalPrice, discountGBP) };
+      // discountGBP of a percent slot = its £ at the "from" price (display and old readers).
+      const priced = {
+        discountGBP: slotDiscountGBP(originalPrice, d),
+        discountPct: d.discountPct ?? null,
+        salePrice: slotSalePrice(originalPrice, d),
+      };
       if (!existing) {
         next.push({ index, ...priced, status: "available" });
         return;

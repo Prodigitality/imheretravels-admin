@@ -37,7 +37,9 @@ import {
   draftFromTour,
   draftSnapshot,
   isLockedAt,
-  maxDiscount,
+  draftModel,
+  heroOfferLabel,
+  withDiscountType,
   newKey,
   newSaleDraft,
   previewSlots,
@@ -291,7 +293,8 @@ export default function SaleEditor({ sale: initialSale, tours, allSales }: SaleE
 
   // ---- Render ---------------------------------------------------------------
 
-  const firstSlots = firstTour && firstView ? previewSlots(inventory, firstTour, firstView.originalPrice, now) : [];
+  const model = draftModel(draft);
+  const firstSlots = firstTour && firstView ? previewSlots(inventory, firstTour, firstView.originalPrice, now, model) : [];
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -354,7 +357,7 @@ export default function SaleEditor({ sale: initialSale, tours, allSales }: SaleE
             isDraft={draft.status === "draft"}
             startAt={startIso}
             endAt={endIso}
-            upTo={maxDiscount(draft)}
+            offerLabel={heroOfferLabel(draft)}
             hasTours={draft.tours.length > 0}
             fallbackImage={firstView?.coverImage}
             mode={heroMode}
@@ -365,11 +368,13 @@ export default function SaleEditor({ sale: initialSale, tours, allSales }: SaleE
 
           <SaleFixedContent
             part="how"
+            percent={model.type === "percent" && Number.isFinite(model.percent) ? model.percent : null}
             holdMinutes={Number.isFinite(numOrNaN(draft.holdMinutes)) ? Number(draft.holdMinutes) : 15}
             example={firstView ? { name: firstView.name, originalPrice: firstView.originalPrice, slots: firstSlots } : undefined}
           />
 
           <SaleDealsEditor
+            model={model}
             tours={draft.tours}
             tourById={tourById}
             pickableTours={pickableTours}
@@ -386,7 +391,10 @@ export default function SaleEditor({ sale: initialSale, tours, allSales }: SaleE
             onSkipUnmatched={(key) => setUnmatched((list) => list.filter((x) => x.key !== key))}
           />
 
-          <SaleFixedContent part="faq" holdMinutes={Number.isFinite(numOrNaN(draft.holdMinutes)) ? Number(draft.holdMinutes) : 15} />
+          <SaleFixedContent
+            part="faq"
+            percent={model.type === "percent" && Number.isFinite(model.percent) ? model.percent : null}
+            holdMinutes={Number.isFinite(numOrNaN(draft.holdMinutes)) ? Number(draft.holdMinutes) : 15} />
         </main>
       </div>
 
@@ -395,6 +403,8 @@ export default function SaleEditor({ sale: initialSale, tours, allSales }: SaleE
         onClose={() => setSettingsOpen(false)}
         draft={draft}
         onChange={(p) => (p.name !== undefined ? onNameChange(p.name) : patch(p))}
+        onDiscountTypeChange={(type) => setDraft((d) => withDiscountType(d, type))}
+        hasLockedSlots={draft.tours.some((t) => tourHasLocked(inventory, t.tourPackageId, now))}
         onSlugChange={(slug) => patch({ slug, slugTouched: true })}
         savedSlug={sale?.slug ?? null}
         otherSlugs={otherSlugs}
@@ -405,6 +415,7 @@ export default function SaleEditor({ sale: initialSale, tours, allSales }: SaleE
       />
 
       <SaleTourDrawer
+        model={model}
         tour={editingTour}
         tourPkg={editingTour ? tourById.get(editingTour.tourPackageId) : undefined}
         inventory={inventory}

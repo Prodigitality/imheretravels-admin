@@ -14,7 +14,8 @@ import {
   lostSlots,
   pickSlots,
   publicState,
-  salePriceFor,
+  slotDiscountGBP,
+  slotSalePrice,
 } from "./slots";
 import { tourPriceInfo } from "./pricing";
 import {
@@ -64,7 +65,8 @@ interface StoredHold {
   displayName: string;
   partySize: number;
   slotIndexes: number[];
-  slots: { index: number; salePrice: number; originalPrice: number; discountGBP?: number }[];
+  /** discountPct set: that % comes off the travel date's price (init-payment re-prices). */
+  slots: { index: number; salePrice: number; originalPrice: number; discountGBP?: number; discountPct?: number | null }[];
   /** Travel dates left out of the sale when this hold was claimed. */
   excludedDates?: string[];
   email: string;
@@ -101,6 +103,7 @@ function freed(slot: SlotWithMs): SlotWithMs {
   return {
     index: slot.index,
     discountGBP: slot.discountGBP,
+    discountPct: slot.discountPct ?? null,
     salePrice: slot.salePrice,
     paymentLinkUrl: slot.paymentLinkUrl ?? null,
     note: slot.note ?? null,
@@ -278,8 +281,9 @@ export async function claimSlots(input: ClaimInput): Promise<SaleHoldView & { to
       slotIndexes: picked.map((s) => s.index),
       slots: picked.map((s) => ({
         index: s.index,
-        discountGBP: s.discountGBP,
-        salePrice: salePriceFor(basePrice, s.discountGBP),
+        discountGBP: slotDiscountGBP(basePrice, s),
+        ...(s.discountPct ? { discountPct: s.discountPct } : {}),
+        salePrice: slotSalePrice(basePrice, s),
         originalPrice: basePrice,
       })),
       excludedDates,

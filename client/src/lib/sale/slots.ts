@@ -62,6 +62,48 @@ export function salePriceFor(originalPrice: number, discountGBP: number): number
   return Math.max(0, Math.round((originalPrice - discountGBP) * 100) / 100);
 }
 
+/**
+ * How a sale discounts its slots, set per sale in the editor's Settings:
+ * - tiered: each slot has its own £ discount (price tiers, slot 1 cheapest);
+ * - percent: every slot is the same % off the travel date's own price.
+ */
+export type DiscountModel = { type: "tiered" } | { type: "percent"; percent: number };
+export const DEFAULT_DISCOUNT_MODEL: DiscountModel = { type: "tiered" };
+/** Whole percent, 1–99. */
+export const MAX_DISCOUNT_PERCENT = 99;
+
+export function parseDiscountModel(raw: unknown): DiscountModel {
+  const r = raw as { type?: unknown; percent?: unknown } | null | undefined;
+  const pct = Number(r?.percent);
+  return r?.type === "percent" && Number.isFinite(pct) && pct > 0 && pct <= 100 ? { type: "percent", percent: pct } : DEFAULT_DISCOUNT_MODEL;
+}
+
+/** The parts of a slot that set its price. `discountPct` wins when set. */
+export interface SlotDiscount {
+  discountGBP: number;
+  discountPct?: number | null;
+}
+
+/**
+ * £ off `price` for one slot: its percentage of that price (whole pounds) when
+ * it has one, else its fixed £ discount. Price = the travel date's price, or
+ * the tour's "from" price before a date is picked.
+ */
+export function slotDiscountGBP(price: number, slot: SlotDiscount): number {
+  const pct = slot.discountPct;
+  return typeof pct === "number" && pct > 0 ? Math.round((price * pct) / 100) : slot.discountGBP;
+}
+
+/** Sale price of one slot on `price`. */
+export function slotSalePrice(price: number, slot: SlotDiscount): number {
+  return salePriceFor(price, slotDiscountGBP(price, slot));
+}
+
+/** "−20%" or "−£250", for one slot. */
+export function slotDiscountLabel(slot: SlotDiscount, formatGBP: (n: number) => string): string {
+  return typeof slot.discountPct === "number" && slot.discountPct > 0 ? `${slot.discountPct}%` : formatGBP(slot.discountGBP);
+}
+
 export interface SaleWindow {
   status: string;
   startAtMs: number | null;

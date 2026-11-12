@@ -8,8 +8,21 @@ import type { PreviewSlot } from "./sale-draft";
 // reads end to end. Source of truth: www/app/black-friday/_components/
 // HowItWorks.tsx and saleFaqs.ts. Update both together.
 
-function saleFaqs(holdMinutes: number): { q: string; a: string }[] {
+function saleFaqs(holdMinutes: number, percent: number | null): { q: string; a: string }[] {
+  const slotsFaqs = percent
+    ? [
+        {
+          q: "How do slots work?",
+          a: `Each slot is one person's place on the tour, and each tour in the sale has a set number of them (for example 10). Every slot is ${percent}% off the regular price of the travel date you pick. When you book, each person in your party takes one of the free slots.`,
+        },
+        {
+          q: "How much do I save?",
+          a: `${percent}% off the tour's regular price for your travel date, for every person in your party. Sale places are limited, so once a tour's slots are gone, it's back to the regular price.`,
+        },
+      ]
+    : null;
   return [
+    ...(slotsFaqs ?? [
     {
       q: "How do slots work?",
       a: "Each tour in the sale has a small number of discounted slots, sold in order. Slot 1 is the cheapest, slot 2 costs a little more, and so on. When you book, your party takes the next free slots — a Duo booking after slot 1 has gone gets slots 2 and 3.",
@@ -18,6 +31,7 @@ function saleFaqs(holdMinutes: number): { q: string; a: string }[] {
       q: "Why do earlier slots cost less?",
       a: "It's our way of thanking the travellers who commit first. The earlier slots carry the biggest discounts, so the sooner you book, the more you save. Every slot is still cheaper than the tour's normal price.",
     },
+    ]),
     {
       q: "What happens when I hold a slot?",
       a: `We keep your slots for you for ${holdMinutes} minutes while you finish booking. Only you see the timer — everyone else just sees those slots as "on hold". If you don't finish in time, they go back on sale.`,
@@ -33,7 +47,9 @@ function saleFaqs(holdMinutes: number): { q: string; a: string }[] {
     },
     {
       q: "What if the timer runs out?",
-      a: "Your slots are released and go back on sale for everyone. If they're still free, you can hold them again — but the price is whatever the next free slot costs at that moment.",
+      a: percent
+        ? `Your slots are released and go back on sale for everyone. If they're still free, you can hold them again at the same ${percent}% off.`
+        : "Your slots are released and go back on sale for everyone. If they're still free, you can hold them again — but the price is whatever the next free slot costs at that moment.",
     },
   ];
 }
@@ -50,8 +66,11 @@ function FixedNote() {
 export default function SaleFixedContent({
   part,
   holdMinutes,
+  percent = null,
   example,
 }: {
+  /** Percent sale: the flat % (copy changes to match www). */
+  percent?: number | null;
   /** "how" renders How it works (2nd on the page), "faq" the Sale FAQs (last), as on www. */
   part: "how" | "faq";
   holdMinutes: number;
@@ -97,12 +116,29 @@ export default function SaleFixedContent({
           </ol>
           <div className="mt-10 rounded-lg bg-light-grey p-5 md:flex md:items-center md:justify-between md:gap-10 md:p-7">
             <div className="md:max-w-sm">
-              <p className="font-sans text-h5-mobile text-midnight md:text-h5-desktop">Earlier slots = bigger savings</p>
-              <p className="mt-1 font-body text-b2-mobile text-dark-gray md:text-b4-desktop">
-                Slot 1 is the cheapest. Each slot after it costs a little more, so the sooner you book, the more you save.
-              </p>
+              {percent ? (
+                <>
+                  <p className="font-sans text-h5-mobile text-midnight md:text-h5-desktop">{percent}% off every slot</p>
+                  <p className="mt-1 font-body text-b2-mobile text-dark-gray md:text-b4-desktop">
+                    Every slot is {percent}% off the price of your travel date, but each tour only has a few, so book before they&apos;re gone.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-sans text-h5-mobile text-midnight md:text-h5-desktop">Earlier slots = bigger savings</p>
+                  <p className="mt-1 font-body text-b2-mobile text-dark-gray md:text-b4-desktop">
+                    Slot 1 is the cheapest. Each slot after it costs a little more, so the sooner you book, the more you save.
+                  </p>
+                </>
+              )}
             </div>
-            {example && exampleSlots.length > 1 && (
+            {percent && example && exampleSlots[0] && (
+              <p className="mt-5 font-body text-b2-mobile text-midnight tabular-nums md:mt-0 md:text-b4-desktop">
+                {example.name}: <span className="text-dark-gray line-through">{formatGBP(example.originalPrice)}</span>{" "}
+                <span className="font-bold">{formatGBP(exampleSlots[0].salePrice ?? 0)}</span> per person
+              </p>
+            )}
+            {!percent && example && exampleSlots.length > 1 && (
               <figure className="mt-5 md:mt-0 md:flex-1">
                 <ol className="flex items-end gap-1.5 tabular-nums" aria-label={`${example.name} slot prices`}>
                   {/* Same cap as www HowItWorks: first 5 bars, then "+N more". */}
@@ -145,7 +181,7 @@ export default function SaleFixedContent({
             <FixedNote />
           </div>
           <div className="mt-6 divide-y divide-light-grey rounded-lg border border-light-grey px-5">
-            {saleFaqs(holdMinutes).map((f, i) => (
+            {saleFaqs(holdMinutes, percent).map((f, i) => (
               <details key={f.q} open={i === 0} className="group py-4">
                 <summary className="cursor-pointer list-none font-sans text-b2-mobile font-bold text-midnight marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-crimson-red md:text-b2-desktop">
                   <span className="mr-2 inline-block transition-transform group-open:rotate-90" aria-hidden>

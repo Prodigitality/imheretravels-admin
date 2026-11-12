@@ -14,6 +14,7 @@ import {
   previewSlots,
   previewTiers,
   tourView,
+  type DraftModel,
   type DraftTour,
   type Inventory,
   type PreviewSlot,
@@ -27,6 +28,8 @@ const PILL_OUTLINE =
 const WARN = "text-[#9A4A00]";
 
 interface SaleDealsEditorProps {
+  /** The sale's discount model (Settings). */
+  model: DraftModel;
   tours: DraftTour[];
   tourById: Map<string, TourPackage>;
   pickableTours: TourPackage[];
@@ -45,7 +48,8 @@ interface SaleDealsEditorProps {
 
 /** "The deals" section. Cards mirror www `SaleTourCard`; tour data is live from the tour package. */
 export default function SaleDealsEditor(props: SaleDealsEditorProps) {
-  const { tours, tourById, pickableTours, inventory, now, unmatched } = props;
+  const { model, tours, tourById, pickableTours, inventory, now, unmatched } = props;
+  const percent = model.type === "percent" ? model.percent : null;
   const csvRef = useRef<HTMLInputElement>(null);
   const inSale = new Set(tours.map((t) => t.tourPackageId));
 
@@ -58,7 +62,9 @@ export default function SaleDealsEditor(props: SaleDealsEditorProps) {
               The deals
             </h2>
             <p className="mt-3 font-body text-b2-mobile text-midnight md:text-b2-desktop">
-              Prices are per person. Each tour has a handful of discounted slots, cheapest first — when one goes, the next price applies.
+              {percent !== null
+                ? `Prices are per person. Every slot is ${Number.isFinite(percent) ? `${percent}%` : "the sale's %"} off the travel date's price.`
+                : "Prices are per person. Each tour has a handful of discounted slots, cheapest first — when one goes, the next price applies."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -89,10 +95,17 @@ export default function SaleDealsEditor(props: SaleDealsEditorProps) {
             </TourPicker>
           </div>
         </div>
-        <HelpText className="mt-3">
-          <span className="font-bold text-midnight">1 slot = 1 person.</span> Each tour links to a tour package (name, cover and price are read from the tour) and has price
-          tiers: a discount and how many people get it. Tier 1 sells first. Draft tours can be added (they have no public tour page).
-        </HelpText>
+        {percent !== null ? (
+          <HelpText className="mt-3">
+            <span className="font-bold text-midnight">1 slot = 1 person.</span> Each tour links to a tour package (name, cover and price are read from the tour) and has a
+            number of slots, all at the sale&apos;s percentage (Settings → Discount model). Draft tours can be added (they have no public tour page).
+          </HelpText>
+        ) : (
+          <HelpText className="mt-3">
+            <span className="font-bold text-midnight">1 slot = 1 person.</span> Each tour links to a tour package (name, cover and price are read from the tour) and has price
+            tiers: a discount and how many people get it. Tier 1 sells first. Draft tours can be added (they have no public tour page).
+          </HelpText>
+        )}
         <HelpText className="mt-1">
           CSV: one row per tier, in order, header <code className="rounded bg-light-grey px-1 text-midnight">{CSV_HEADER_EXAMPLE}</code>, e.g.{" "}
           {CSV_ROW_EXAMPLES.map((r, i) => (
@@ -103,6 +116,7 @@ export default function SaleDealsEditor(props: SaleDealsEditorProps) {
           ))}{" "}
           = 10 slots. <span className="font-bold text-midnight">Slots = how many people get this discount.</span> “500 OFF” and “£500” work; max {MAX_SLOTS} slots per tour;
           other columns (Original Price, Sale Price…) are ignored. Tours match by country label, then name, then slug.
+          {percent !== null && <span className="font-bold text-midnight"> In a percentage sale only the slot counts are used; the discounts come from Settings.</span>}
         </HelpText>
 
         {unmatched.length > 0 && (
@@ -163,8 +177,9 @@ export default function SaleDealsEditor(props: SaleDealsEditorProps) {
                         <DealCard
                           tour={t}
                           view={view}
-                          slots={previewSlots(inventory, t, view.originalPrice, now)}
-                          tiers={previewTiers(inventory, t, view.originalPrice, now)}
+                          model={model}
+                          slots={previewSlots(inventory, t, view.originalPrice, now, model)}
+                          tiers={previewTiers(inventory, t, view.originalPrice, now, model)}
                           hasLocked={props.hasLocked(t)}
                           priorityLabel={`Deal ${i + 1}`}
                           dragHandle={<DragHandle handle={handle} className="flex size-9 items-center justify-center rounded-full bg-white text-midnight shadow-small" />}
@@ -187,6 +202,7 @@ export default function SaleDealsEditor(props: SaleDealsEditorProps) {
 function DealCard({
   tour: t,
   view,
+  model,
   slots,
   tiers,
   hasLocked,
@@ -197,6 +213,7 @@ function DealCard({
 }: {
   tour: DraftTour;
   view: TourView;
+  model: DraftModel;
   slots: PreviewSlot[];
   tiers: PreviewTier[];
   hasLocked: boolean;
@@ -215,7 +232,8 @@ function DealCard({
   const sold = slots.filter((s) => s.state === "sold").length;
   const soldOut = slots.length > 0 && sold === slots.length;
   const missingDiscounts = tiers.filter((x) => x.discount === null).length;
-  const free = freeTiers(t, original);
+  const isPercent = model.type === "percent";
+  const free = isPercent ? [] : freeTiers(t, original);
   // Tier a new booking starts in (the one holding the next free slot).
   const nextTier = next?.state === "available" ? tiers.find((x) => next.index >= x.first && next.index <= x.last)?.tier : undefined;
   const headingId = `deal-${t.key}`;
@@ -235,7 +253,7 @@ function DealCard({
             <span className="inline-flex items-center rounded-full bg-midnight px-3 py-1.5 font-body text-b4-mobile font-bold text-white md:text-b4-desktop">Sold out</span>
           ) : (next?.discount ?? 0) > 0 ? (
             <span className="inline-flex items-center rounded-full bg-crimson-red px-3 py-1.5 font-body text-b4-mobile font-bold tabular-nums text-white md:text-b4-desktop">
-              Save {formatGBP(next!.discount!)}
+              Save {next!.discountPct ? `${next!.discountPct}%` : formatGBP(next!.discount!)}
             </span>
           ) : null}
           {view.status === "draft" && (
@@ -298,7 +316,12 @@ function DealCard({
         </div>
         <p className="mt-1 font-body text-xs text-dark-gray">
           Tour price {formatGBP(original)} per person
-          {saveUpTo > 0 && (
+          {isPercent && Number.isFinite(model.percent) ? (
+            <>
+              {" "}
+              · <span className="font-bold text-midnight">{model.percent}% off every slot</span>
+            </>
+          ) : saveUpTo > 0 && (
             <>
               {" "}
               · <span className="font-bold text-midnight">save up to {formatGBP(saveUpTo)}</span>
@@ -319,7 +342,7 @@ function DealCard({
           <Users className="h-3.5 w-3.5" aria-hidden />
           {slots.length} slot{slots.length === 1 ? "" : "s"} · 1 slot = 1 person
         </p>
-        {tiers.length > 0 && <TierList tiers={tiers} nextTier={nextTier} />}
+        {tiers.length > 0 && <TierList tiers={tiers} nextTier={nextTier} percent={isPercent} />}
 
         <p className="mt-3 font-body text-b4-mobile font-medium tabular-nums text-midnight md:text-b4-desktop">
           {slots.length === 0 ? "Slots coming soon" : soldOut ? "Sold out" : `${left} of ${slots.length} left`}
@@ -334,7 +357,7 @@ function DealCard({
         {missingDiscounts > 0 && (
           <p className="mt-2 flex items-center gap-1 font-body text-xs font-medium text-[#B4232E]">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {missingDiscounts} tier{missingDiscounts === 1 ? " has" : "s have"} no discount yet
+            {isPercent ? "Set the discount % in Settings" : `${missingDiscounts} tier${missingDiscounts === 1 ? " has" : "s have"} no discount yet`}
           </p>
         )}
         {free.length > 0 && (
@@ -351,7 +374,7 @@ function DealCard({
             className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border-2 border-midnight px-6 py-2.5 font-body text-sm font-bold text-midnight transition-colors hover:bg-midnight hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-crimson-red focus-visible:ring-offset-2"
           >
             <SlidersHorizontal className="h-4 w-4" aria-hidden />
-            Edit price tiers
+            {isPercent ? "Edit slots" : "Edit price tiers"}
           </button>
         </div>
       </div>
@@ -363,9 +386,9 @@ function DealCard({
  * The ladder at a glance as tiers ("Tier 1 · 1 slot · £1,699"), so 10–20
  * slots stay readable. The tier holding the next free slot is highlighted.
  */
-function TierList({ tiers, nextTier }: { tiers: PreviewTier[]; nextTier?: number }) {
+function TierList({ tiers, nextTier, percent = false }: { tiers: PreviewTier[]; nextTier?: number; percent?: boolean }) {
   return (
-    <ol className="mt-2 flex flex-col gap-1" aria-label="Price tiers, cheapest first">
+    <ol className="mt-2 flex flex-col gap-1" aria-label={percent ? "Slots" : "Price tiers, cheapest first"}>
       {tiers.map((x) => {
         const isNext = x.tier === nextTier;
         const soldOut = x.count > 0 && x.sold === x.count;
@@ -379,8 +402,18 @@ function TierList({ tiers, nextTier }: { tiers: PreviewTier[]; nextTier?: number
             )}
           >
             <span className="min-w-0 truncate">
-              <span className="font-bold">Tier {x.tier}</span> · {x.count} slot{x.count === 1 ? "" : "s"}
-              {x.discount !== null && <span className={cn(!isNext && !soldOut && "text-dark-gray")}> · −{formatGBP(x.discount)}</span>}
+              {percent ? (
+                <span className="font-bold">
+                  {x.count === 1 ? "1 slot" : `All ${x.count} slots`}
+                </span>
+              ) : (
+                <>
+                  <span className="font-bold">Tier {x.tier}</span> · {x.count} slot{x.count === 1 ? "" : "s"}
+                </>
+              )}
+              {x.discount !== null && (
+                <span className={cn(!isNext && !soldOut && "text-dark-gray")}> · −{x.discountPct ? `${x.discountPct}%` : formatGBP(x.discount)}</span>
+              )}
             </span>
             <span className="shrink-0">
               <span className={cn("font-bold", soldOut && "line-through decoration-1")}>{x.salePrice === null ? "—" : formatGBP(x.salePrice)}</span>

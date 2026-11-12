@@ -1,6 +1,7 @@
 import { auth } from "@/lib/firebase";
 import type {
   SaleCheckoutMode,
+  SaleDiscountModel,
   SaleEvent,
   SaleHero,
   SaleInventory,
@@ -25,8 +26,10 @@ export interface SaleWithInventory extends SaleEvent {
 export interface SaleTourInput {
   tourPackageId: string;
   order: number;
-  /** Discount £ per slot, slot 1 first; 1..MAX_SLOTS. 1 slot = 1 person. */
-  ladder: number[];
+  /** Tiered sales: discount £ per slot, slot 1 first; 1..MAX_SLOTS. 1 slot = 1 person. */
+  ladder?: number[];
+  /** Percent sales: number of slots (people), each at the sale's %. */
+  slots?: number;
   /** Date keys left out of the sale. */
   excludedDates: string[];
 }
@@ -46,6 +49,7 @@ export interface SaleInput {
   seo: SaleSeo;
   redirectSlugs: string[];
   fallbackUrl: string;
+  discountModel: SaleDiscountModel;
   tours: SaleTourInput[];
 }
 
