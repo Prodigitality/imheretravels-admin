@@ -177,8 +177,8 @@ describe("toSaleInput", () => {
 
     it("lists upcoming bookable dates, soonest first, with the form's date label", () => {
       expect(saleDateRows(draft(["2027-01-16"]).tours[0], dated, NOW)).toEqual([
-        { key: "2027-01-16", label: "Jan 16, 2027", price: 999, included: false },
-        { key: "2027-02-20", label: "Feb 20, 2027", price: 1199, included: true },
+        { key: "2027-01-16", label: "Jan 16, 2027", endKey: null, rangeLabel: "Jan 16, 2027", price: 999, included: false },
+        { key: "2027-02-20", label: "Feb 20, 2027", endKey: null, rangeLabel: "Feb 20, 2027", price: 1199, included: true },
       ]);
     });
 
@@ -279,5 +279,14 @@ describe("percent discount model", () => {
   it("groups saved percent slots into one tier for the tracker", () => {
     const slots = [1, 2, 3].map((index) => ({ index, discountGBP: 290 + index, discountPct: 20 }));
     expect([...tierOfSlot(slots).values()]).toEqual([1, 1, 1]);
+  });
+});
+
+describe("formatDateRange (deal card dates, as on www)", () => {
+  it("shows the year once when both ends share it", async () => {
+    const { formatDateRange } = await import("./sale-draft");
+    expect(formatDateRange("2026-12-01", "2026-12-11")).toBe("Dec 1 – Dec 11, 2026");
+    expect(formatDateRange("2026-12-28", "2027-01-07")).toBe("Dec 28, 2026 – Jan 7, 2027");
+    expect(formatDateRange("2027-01-16", null)).toBe("Jan 16, 2027");
   });
 });

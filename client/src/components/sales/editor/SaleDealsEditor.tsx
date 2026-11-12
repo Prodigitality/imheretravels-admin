@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { AlertTriangle, ExternalLink, FileSpreadsheet, ImageIcon, Lock, Package, Pencil, Plus, SlidersHorizontal, Trash2, Users } from "lucide-react";
+import { AlertTriangle, CalendarDays, ExternalLink, FileSpreadsheet, ImageIcon, Lock, Package, Pencil, Plus, SlidersHorizontal, Trash2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TourPackage } from "@/types/tours";
 import { DragHandle, SortableItem, SortableList, rectSortingStrategy } from "@/components/tours/dnd/SortableList";
@@ -13,12 +13,14 @@ import {
   numberList,
   previewSlots,
   previewTiers,
+  saleDateRows,
   tourView,
   type DraftModel,
   type DraftTour,
   type Inventory,
   type PreviewSlot,
   type PreviewTier,
+  type SaleDateRow,
   type TourView,
   type UnmatchedGroup,
 } from "./sale-draft";
@@ -178,6 +180,7 @@ export default function SaleDealsEditor(props: SaleDealsEditorProps) {
                           tour={t}
                           view={view}
                           model={model}
+                          dates={tourById.has(t.tourPackageId) ? saleDateRows(t, tourById.get(t.tourPackageId), now).filter((d) => d.included) : null}
                           slots={previewSlots(inventory, t, view.originalPrice, now, model)}
                           tiers={previewTiers(inventory, t, view.originalPrice, now, model)}
                           hasLocked={props.hasLocked(t)}
@@ -203,6 +206,7 @@ function DealCard({
   tour: t,
   view,
   model,
+  dates,
   slots,
   tiers,
   hasLocked,
@@ -214,6 +218,8 @@ function DealCard({
   tour: DraftTour;
   view: TourView;
   model: DraftModel;
+  /** Upcoming tour dates in the sale, soonest first; null while the tour isn't loaded. */
+  dates: SaleDateRow[] | null;
   slots: PreviewSlot[];
   tiers: PreviewTier[];
   hasLocked: boolean;
@@ -337,6 +343,7 @@ function DealCard({
           <Pencil className="h-3 w-3" aria-hidden /> Edit price in Tour Packages
           <span className="sr-only">(opens in a new tab)</span>
         </a>
+        <SaleDates dates={dates} />
 
         <p className="mt-4 flex items-center gap-1.5 font-sans text-xs font-bold text-midnight">
           <Users className="h-3.5 w-3.5" aria-hidden />
@@ -379,6 +386,39 @@ function DealCard({
         </div>
       </div>
     </article>
+  );
+}
+
+/** Sale dates listed on a card before the rest collapse into "+N more" (as on www). */
+const CARD_DATES_SHOWN = 3;
+
+/** The tour dates in the sale, soonest first: same list as the www sale card. */
+function SaleDates({ dates }: { dates: SaleDateRow[] | null }) {
+  if (!dates) return null;
+  if (dates.length === 0) {
+    return <p className="mt-3 font-body text-xs font-medium text-[#B4232E]">No upcoming tour dates in the sale</p>;
+  }
+  const shown = dates.slice(0, CARD_DATES_SHOWN);
+  const more = dates.length - shown.length;
+  return (
+    <div className="mt-3 flex items-start gap-1.5 font-body text-b4-mobile text-midnight md:text-b4-desktop">
+      <CalendarDays className="mt-0.5 size-3.5 shrink-0 text-crimson-red" strokeWidth={2.25} aria-hidden />
+      <div>
+        <span className="sr-only">{dates.length === 1 ? "Tour date: " : "Tour dates: "}</span>
+        <ul className="tabular-nums">
+          {shown.map((d) => (
+            <li key={d.key} className="font-medium">
+              {d.rangeLabel}
+            </li>
+          ))}
+        </ul>
+        {more > 0 && (
+          <p className="text-dark-gray">
+            +{more} more {more === 1 ? "date" : "dates"}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 

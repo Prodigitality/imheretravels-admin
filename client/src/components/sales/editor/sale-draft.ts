@@ -14,7 +14,7 @@
 // "tiered" is the price tiers above; "percent" gives every slot of every tour
 // the same % off the travel date's price, so a tour only has a slot count.
 
-import { tourPriceInfo } from "@/lib/sale/pricing";
+import { tourPriceInfo, travelDateKey } from "@/lib/sale/pricing";
 import { MAX_DISCOUNT_PERCENT, slotDiscountGBP, slotSalePrice, type SlotDiscount } from "@/lib/sale/slots";
 import type { SaleInput, SaleWithInventory } from "@/services/sale-events-service";
 import type { SaleCheckoutMode, SaleDiscountModel, SaleSlot, SaleStatus } from "@/types/sale-events";
@@ -239,20 +239,41 @@ export interface SaleDateRow {
   key: string;
   /** e.g. "Jan 16, 2027", as the reservation form shows it. */
   label: string;
+  /** Last day of the tour (date key), when the tour date has one. */
+  endKey: string | null;
+  /** "Jun 20 – Jun 30, 2027", as the www sale card shows it. */
+  rangeLabel: string;
   price: number;
   included: boolean;
 }
 
 // UTC, because a date key is the UTC day of the travel date.
 const dateLabel = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+const monthDay = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+/** "Jun 20 – Jun 30, 2027" (the year once when both ends share it). Same as www's formatDateRange. */
+export function formatDateRange(start: string, end: string | null): string {
+  if (!end || end === start) return dateLabel.format(Date.parse(start));
+  return start.slice(0, 4) === end.slice(0, 4)
+    ? `${monthDay.format(Date.parse(start))} – ${dateLabel.format(Date.parse(end))}`
+    : `${dateLabel.format(Date.parse(start))} – ${dateLabel.format(Date.parse(end))}`;
+}
 
 /** The tour's upcoming bookable dates, soonest first, and whether each is in the sale. */
 export function saleDateRows(t: DraftTour, pkg: TourPackage | undefined, now = Date.now()): SaleDateRow[] {
   if (!pkg) return [];
   const { byDate } = tourPriceInfo(Number(pkg.pricing?.original) || 0, pkg.travelDates, now);
+  const endOf = new Map<string, string | null>();
+  for (const d of (pkg.travelDates ?? []) as { startDate?: unknown; endDate?: unknown }[]) {
+    const key = travelDateKey(d?.startDate);
+    if (key && !endOf.has(key)) endOf.set(key, travelDateKey(d?.endDate));
+  }
   return [...byDate]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, price]) => ({ key, label: dateLabel.format(Date.parse(key)), price, included: !t.excludedDates.includes(key) }));
+    .map(([key, price]) => {
+      const endKey = endOf.get(key) ?? null;
+      return { key, label: dateLabel.format(Date.parse(key)), endKey, rangeLabel: formatDateRange(key, endKey), price, included: !t.excludedDates.includes(key) };
+    });
 }
 
 export const withDateIncluded = (t: DraftTour, key: string, included: boolean): string[] =>
