@@ -15,6 +15,8 @@ type PaymentSuccessActionInput = {
   setPaymentConfirmed: (value: boolean) => void;
   setBookingId: (value: string) => void;
   onError: (error: unknown) => void;
+  /** Called once the reservation fee is confirmed (and not refunded). */
+  onConfirmed?: (paymentDocId?: string) => void;
   /** Test seam: how long to wait for the webhook's booking, and how often to look. */
   bookingWait?: { timeoutMs: number; intervalMs: number };
 };
@@ -56,6 +58,7 @@ export const runPaymentSuccessAction = async ({
   setPaymentConfirmed,
   setBookingId,
   onError,
+  onConfirmed,
   bookingWait = { timeoutMs: 30000, intervalMs: 1500 },
 }: PaymentSuccessActionInput): Promise<void> => {
   try {
@@ -115,6 +118,7 @@ export const runPaymentSuccessAction = async ({
     } catch {}
 
     setPaymentConfirmed(true);
+    onConfirmed?.(actualPaymentDocId);
     if (!completedSteps.includes(1)) {
       setCompletedSteps((prev) => [...prev, 1]);
     }

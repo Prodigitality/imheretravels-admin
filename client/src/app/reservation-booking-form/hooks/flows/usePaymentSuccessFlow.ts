@@ -1,5 +1,6 @@
 ﻿import { useCallback } from "react";
 import { SALE_CONFLICT_ERROR, runPaymentSuccessAction } from "../../actions/paymentSuccessAction";
+import { markBookingConfirmed } from "../../utils/bookingConfirmedUrl";
 
 type UsePaymentSuccessFlowOptions = {
   email: string;
@@ -31,6 +32,7 @@ export const usePaymentSuccessFlow = ({
         setCompletedSteps,
         setPaymentConfirmed,
         setBookingId,
+        onConfirmed: (docId) => markBookingConfirmed(docId),
         onError: (error) => {
           if (error instanceof Error && error.message === SALE_CONFLICT_ERROR) {
             alert(

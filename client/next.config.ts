@@ -6,6 +6,28 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // /reservation-booking-form/booking-confirmed is the form's address after the
+  // reservation fee is paid (see utils/bookingConfirmedUrl.ts). In-app (RSC)
+  // requests render the form; a full page load goes back to the plain form
+  // URL, so a refresh doesn't count the booking again. Query strings carry over.
+  async redirects() {
+    return [
+      {
+        source: "/reservation-booking-form/booking-confirmed",
+        missing: [{ type: "header", key: "rsc" }],
+        destination: "/reservation-booking-form",
+        permanent: false,
+      },
+    ];
+  },
+  async rewrites() {
+    return [
+      {
+        source: "/reservation-booking-form/booking-confirmed",
+        destination: "/reservation-booking-form",
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

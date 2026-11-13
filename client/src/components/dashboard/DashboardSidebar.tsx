@@ -31,6 +31,7 @@ import {
   ShieldAlert,
   BookOpen,
   Handshake,
+  Inbox,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth-store";
 import {
@@ -90,6 +91,12 @@ const navigation = [
     href: "/reviews",
     icon: Star,
     description: "Moderate traveler reviews",
+  },
+  {
+    name: "Enquiries",
+    href: "/enquiries",
+    icon: Inbox,
+    description: "Tour enquiries from Inquire now",
   },
   {
     name: "Partnerships",
