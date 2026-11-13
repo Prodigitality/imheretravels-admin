@@ -1,7 +1,15 @@
 /**
- * Tour enquiries ("Inquire now" on www sale cards and tour pages), submitted
- * through www /api/enquiry into the server-only `enquiries` collection.
+ * Leads from www, in the server-only `enquiries` collection: tour enquiries
+ * ("Inquire now" on sale cards and tour pages, www /api/enquiry) and messages
+ * from the /contact-us form (www /api/contact).
  */
+
+export type EnquiryForm = "tour_enquiry" | "contact_us";
+
+export const ENQUIRY_FORM_LABELS: Record<EnquiryForm, string> = {
+  tour_enquiry: "Tour enquiry",
+  contact_us: "Contact form",
+};
 
 export const ENQUIRY_STATUSES = ["new", "contacted", "booked", "closed"] as const;
 export type EnquiryStatus = (typeof ENQUIRY_STATUSES)[number];
@@ -30,6 +38,7 @@ export interface EnquiryNote {
 
 export interface Enquiry {
   id: string;
+  form: EnquiryForm;
   status: EnquiryStatus;
   name: string;
   email: string;

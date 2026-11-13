@@ -6,7 +6,7 @@ import EnquiriesList from "@/components/enquiries/EnquiriesList";
 
 export const metadata: Metadata = {
   title: "Enquiries - ImHereTravels Admin",
-  description: "Tour enquiries from the Inquire now buttons on imheretravels.com",
+  description: "Tour enquiries and contact form messages from imheretravels.com",
 };
 
 export default function EnquiriesPage() {
@@ -17,7 +17,7 @@ export default function EnquiriesPage() {
           <div>
             <h1 className="text-2xl font-bold text-foreground font-hk-grotesk">Enquiries</h1>
             <p className="mt-1 text-base text-muted-foreground">
-              Leads from the Inquire now buttons on imheretravels.com sale cards and tour pages
+              Leads from the Inquire now buttons and the Contact us form on imheretravels.com
             </p>
           </div>
           <Suspense fallback={null}>

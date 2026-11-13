@@ -96,7 +96,7 @@ const navigation = [
     name: "Enquiries",
     href: "/enquiries",
     icon: Inbox,
-    description: "Tour enquiries from Inquire now",
+    description: "Inquire now & contact form leads",
   },
   {
     name: "Partnerships",

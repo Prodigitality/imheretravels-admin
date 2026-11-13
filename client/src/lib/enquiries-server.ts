@@ -32,6 +32,7 @@ export function serializeEnquiry(snap: DocumentSnapshot): Enquiry {
     : [];
   return {
     id: snap.id,
+    form: d.source?.form === "contact_us" ? "contact_us" : "tour_enquiry",
     status: ENQUIRY_STATUSES.includes(d.status) ? d.status : "new",
     name: str(d.name) || `${str(d.firstName)} ${str(d.lastName)}`.trim(),
     email: str(d.email),

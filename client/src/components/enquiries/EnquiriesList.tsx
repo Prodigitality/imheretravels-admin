@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { staffFetch } from "@/lib/staff-fetch";
 import { cn } from "@/lib/utils";
 import {
+  ENQUIRY_FORM_LABELS,
   ENQUIRY_LOCATION_LABELS,
   ENQUIRY_STATUSES,
   ENQUIRY_STATUS_LABELS,
@@ -51,6 +52,8 @@ const STATUS_STYLES: Record<EnquiryStatus, { badge: string; dot: string }> = {
 const TH = "px-4 text-left align-middle text-xs font-semibold uppercase tracking-wide text-muted-foreground";
 const TD = "px-4 py-3.5 align-middle";
 const WWW = "https://www.imheretravels.com";
+/** Tour filter value for messages from the /contact-us form. */
+const CONTACT_FILTER = "__contact_form";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -142,7 +145,7 @@ export default function EnquiriesList() {
     const q = query.trim().toLowerCase();
     return items.filter((e) => {
       if (status !== "all" && e.status !== status) return false;
-      if (tour !== "all" && e.tour?.name !== tour) return false;
+      if (tour === CONTACT_FILTER ? e.form !== "contact_us" : tour !== "all" && e.tour?.name !== tour) return false;
       if (!q) return true;
       return [e.name, e.email, e.phone, e.message, e.tour?.name ?? ""].join(" ").toLowerCase().includes(q);
     });
@@ -187,6 +190,7 @@ export default function EnquiriesList() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All tours</SelectItem>
+              <SelectItem value={CONTACT_FILTER}>Contact form</SelectItem>
               {tours.map((t) => (
                 <SelectItem key={t} value={t}>
                   {t}
@@ -246,7 +250,7 @@ export default function EnquiriesList() {
                   <p className="mt-1 text-sm text-muted-foreground">
                     {status !== "all" || tour !== "all" || query
                       ? "Try clearing the search or filters."
-                      : "Enquiries from the Inquire now buttons on imheretravels.com appear here."}
+                      : "Enquiries from the Inquire now buttons and the Contact us form on imheretravels.com appear here."}
                   </p>
                 </TableCell>
               </TableRow>
@@ -292,7 +296,9 @@ export default function EnquiriesList() {
                       </div>
                     </TableCell>
                     <TableCell className={cn(TD, "hidden md:table-cell")}>
-                      <p className="truncate text-sm text-foreground">{e.tour?.name || "—"}</p>
+                      <p className={cn("truncate text-sm", e.form === "contact_us" ? "text-muted-foreground" : "text-foreground")}>
+                        {e.form === "contact_us" ? "Contact form" : e.tour?.name || "—"}
+                      </p>
                       {e.message && <p className="truncate text-xs text-muted-foreground">{e.message}</p>}
                     </TableCell>
                     <TableCell className={cn(TD, "hidden truncate text-sm lg:table-cell")}>{e.phone || "—"}</TableCell>
@@ -371,7 +377,7 @@ function EnquiryDetail({
       view: "cm",
       fs: "1",
       to: item.email,
-      su: item.tour?.name ? `Your enquiry about ${item.tour.name}` : "Your I'm Here Travels enquiry",
+      su: item.tour?.name ? `Your enquiry about ${item.tour.name}` : "Your message to I'm Here Travels",
       body: `Hi ${firstName},\n\n`,
     });
     return `https://mail.google.com/mail/u/0/?${params.toString()}`;
@@ -394,14 +400,23 @@ function EnquiryDetail({
     ["Phone", item.phone || "—"],
     ["Message", item.message || "—"],
     ["Newsletter", item.subscribe ? "Opted in" : "No"],
-    ["Sent from", item.location ? (ENQUIRY_LOCATION_LABELS[item.location] ?? item.location) : "—"],
+    [
+      "Sent from",
+      item.form === "contact_us"
+        ? "Contact us page"
+        : item.location
+          ? (ENQUIRY_LOCATION_LABELS[item.location] ?? item.location)
+          : "—",
+    ],
   ];
 
   return (
     <div className="space-y-6">
       <SheetHeader>
         <SheetTitle className="font-hk-grotesk text-xl">{item.name}</SheetTitle>
-        <SheetDescription>Tour enquiry · received {fmtDate(item.createdAt)}</SheetDescription>
+        <SheetDescription>
+          {ENQUIRY_FORM_LABELS[item.form]} · received {fmtDate(item.createdAt)}
+        </SheetDescription>
       </SheetHeader>
 
       <div className="flex flex-wrap items-center gap-2">
