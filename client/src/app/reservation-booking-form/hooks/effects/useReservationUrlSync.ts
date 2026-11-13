@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect } from "react";
+﻿import { useCallback, useEffect, useRef } from "react";
 import {
   buildUrlWithQueryParam,
   hasPaymentIdParam,
@@ -43,6 +43,10 @@ export const useReservationUrlSync = ({
   setTourPackage,
   setTourDate,
 }: UseReservationUrlSyncOptions) => {
+  // The ?tourdate= deep link is applied once. After that the date is the
+  // customer's: clearing it ("Choose another date" on the sale prompt) must
+  // not bring the URL's date back before the URL sync below drops it.
+  const urlDateApplied = useRef(false);
   const replaceWithPaymentId = useCallback(
     (docId: string | null) => {
       if (!docId) return;
@@ -128,6 +132,7 @@ export const useReservationUrlSync = ({
                 Array.isArray(match.travelDates) &&
                 match.travelDates.includes(tourDateParam)
               ) {
+                urlDateApplied.current = true;
                 setTourDate(tourDateParam);
               }
             } catch {}
@@ -195,6 +200,7 @@ export const useReservationUrlSync = ({
       if (isLoadingPackages) return;
       if (!tourPackage) return;
       if (tourDate) return;
+      if (urlDateApplied.current) return;
 
       let tourDateParam = searchParams?.get("tourdate");
       if (!tourDateParam) {
@@ -209,6 +215,7 @@ export const useReservationUrlSync = ({
       if (!tourDateParam) return;
       const pkg = tourPackages.find((p) => p.id === tourPackage);
       if (pkg?.travelDates?.includes(tourDateParam)) {
+        urlDateApplied.current = true;
         setTourDate(tourDateParam);
       }
     } catch (err) {
