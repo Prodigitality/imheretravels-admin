@@ -5,7 +5,8 @@
  *
  * The customer stays on the same form (step 3 still has to pick a payment
  * plan), so the address bar moves with history.pushState at the moment the
- * reservation fee is confirmed, once per payment per tab. next.config.ts makes
+ * reservation fee is confirmed, once per payment per tab, and dataLayer gets
+ * `reservation_confirmed` {payment_id}. next.config.ts makes
  * the address safe: in-app navigations to it render the form, and a full load
  * (refresh, shared link) redirects to the plain form URL so it can't count
  * the same booking twice.
@@ -42,6 +43,8 @@ export function markBookingConfirmed(
     return false;
   }
   const w = window as unknown as { dataLayer?: unknown[] };
-  (w.dataLayer = w.dataLayer || []).push({ event: "booking_confirmed", payment_id: paymentDocId ?? "" });
+  // "Reservation" (fee paid), not "booking" (tour fully paid). The URL keeps
+  // the ad agency's /booking-confirmed name.
+  (w.dataLayer = w.dataLayer || []).push({ event: "reservation_confirmed", payment_id: paymentDocId ?? "" });
   return true;
 }
