@@ -61,4 +61,28 @@ describe("buildReservationDraftPayload", () => {
     expect(payload.booking.guestDetails[0].whatsAppNumber).toBe("+44888000111");
     expect(payload.payment.originalPrice).toBe(999);
   });
+  it("adds utm only when the visitor had some", () => {
+    const input = {
+      email: "a@x.com",
+      firstName: "A",
+      lastName: "B",
+      birthdate: "1990-01-01",
+      nationality: "British",
+      whatsAppNumber: "",
+      whatsAppCountry: "GB",
+      bookingType: "Single Booking",
+      groupSize: 1,
+      guestDetails: [],
+      tourPackage: "tour-1",
+      tourPackageName: "Tour 1",
+      tourDate: "2026-12-10",
+      depositAmount: 250,
+      safeGetCountryCallingCodeFn: () => "44",
+    };
+    expect("utm" in buildReservationDraftPayload(input)).toBe(false);
+    expect("utm" in buildReservationDraftPayload({ ...input, utm: null })).toBe(false);
+    expect(buildReservationDraftPayload({ ...input, utm: { utm_source: "facebook" } }).utm).toEqual({
+      utm_source: "facebook",
+    });
+  });
 });

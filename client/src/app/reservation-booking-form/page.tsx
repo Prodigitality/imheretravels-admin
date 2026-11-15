@@ -38,6 +38,7 @@ import {
   safeGetCountryCallingCode,
 } from "./utils/countryPhoneData";
 import { buildReservationDraftPayload } from "./utils/reservationDraftPayload";
+import { getUtm } from "./utils/utmCapture";
 import { createDefaultReservationSideEffects } from "./side-effects/defaultSideEffects";
 import {
   useConfirmBookingFlow,
@@ -252,6 +253,7 @@ const Page = () => {
       tourDate,
       depositAmount,
       customOriginal: selectedDateDetail?.customOriginal,
+      utm: getUtm(),
       safeGetCountryCallingCodeFn: safeGetCountryCallingCode,
     });
 

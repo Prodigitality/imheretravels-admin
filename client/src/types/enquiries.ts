@@ -25,6 +25,7 @@ export const ENQUIRY_STATUS_LABELS: Record<EnquiryStatus, string> = {
 export const ENQUIRY_LOCATION_LABELS: Record<string, string> = {
   sale_card: "Sale page card",
   tour_page: "Tour page",
+  tour_page_top: "Tour page (top, mobile)",
   tour_mobile_bar: "Tour page (mobile bar)",
 };
 
@@ -48,6 +49,8 @@ export interface Enquiry {
   subscribe: boolean;
   location: string | null;
   page: string;
+  /** Landing-page UTMs saved by www (source.utm), e.g. { utm_source: "facebook" }. */
+  utm: Record<string, string> | null;
   notes: EnquiryNote[];
   /** "sent" | "failed" | "skipped_dev" | "pending" */
   teamEmail: string | null;

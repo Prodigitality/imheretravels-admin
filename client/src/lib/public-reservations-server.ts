@@ -3,6 +3,7 @@ import "server-only";
 import { db, doc, getDoc } from "@/lib/server-firestore";
 import { priceReservation, travellerCount, type ReservationPrice } from "@/lib/reservation-pricing";
 import { timestampsToWire } from "@/lib/public-booking-view";
+import { cleanUtm, type Utm } from "@/lib/utm";
 import {
   getPaymentStatus,
   isPendingReservationStatus,
@@ -50,6 +51,8 @@ export type DraftInput = {
     }>;
   };
   tour: { packageId: string; date: string };
+  /** Landing-page UTMs, cleaned (lib/utm.ts). Absent when the visitor had none. */
+  utm?: Utm | null;
 };
 
 const readPerson = (p: any) => ({
@@ -87,7 +90,12 @@ export function readDraftInput(body: any): { ok: true; input: DraftInput } | { o
 
   return {
     ok: true,
-    input: { customer, booking: { type, groupSize, guestDetails }, tour: { packageId, date } },
+    input: {
+      customer,
+      booking: { type, groupSize, guestDetails },
+      tour: { packageId, date },
+      utm: cleanUtm(body?.utm),
+    },
   };
 }
 
@@ -124,6 +132,8 @@ export function draftDocFields(input: DraftInput, price: Extract<ReservationPric
       type: "reservationFee",
       ...(price.originalPrice ? { originalPrice: price.originalPrice } : {}),
     },
+    // Only when present, so re-submitting step 1 (PATCH) never clears them.
+    ...(input.utm ? { utm: input.utm } : {}),
   };
 }
 

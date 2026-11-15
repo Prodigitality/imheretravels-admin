@@ -1,3 +1,5 @@
+import type { Utm } from "@/lib/utm";
+
 export type ReservationDraftGuest = {
   email: string;
   firstName: string;
@@ -24,6 +26,8 @@ export type BuildReservationDraftPayloadInput = {
   tourDate: string;
   depositAmount: number;
   customOriginal?: number;
+  /** Landing-page UTMs (utils/utmCapture.ts); sent only when there are some. */
+  utm?: Utm | null;
   safeGetCountryCallingCodeFn: (countryCode: string) => string;
 };
 
@@ -63,6 +67,7 @@ export const buildReservationDraftPayload = ({
   tourDate,
   depositAmount,
   customOriginal,
+  utm,
   safeGetCountryCallingCodeFn,
 }: BuildReservationDraftPayloadInput) => {
   return {
@@ -100,5 +105,6 @@ export const buildReservationDraftPayload = ({
       type: "reservationFee",
       ...(customOriginal ? { originalPrice: customOriginal } : {}),
     },
+    ...(utm ? { utm } : {}),
   };
 };

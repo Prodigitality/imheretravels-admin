@@ -408,6 +408,14 @@ function EnquiryDetail({
           ? (ENQUIRY_LOCATION_LABELS[item.location] ?? item.location)
           : "—",
     ],
+    [
+      "Campaign (UTM)",
+      item.utm
+        ? Object.entries(item.utm)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join("\n")
+        : "—",
+    ],
   ];
 
   return (

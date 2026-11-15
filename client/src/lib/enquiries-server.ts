@@ -3,6 +3,7 @@ import "server-only";
 import type { DocumentSnapshot, Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin-db";
 import { ENQUIRY_STATUSES, type Enquiry, type EnquiryNote } from "@/types/enquiries";
+import { cleanUtm } from "@/lib/utm";
 
 export const ENQUIRIES_COL = "enquiries";
 
@@ -42,6 +43,7 @@ export function serializeEnquiry(snap: DocumentSnapshot): Enquiry {
     subscribe: d.subscribe === true,
     location: d.source?.location ? str(d.source.location) : null,
     page: str(d.source?.page),
+    utm: cleanUtm(d.source?.utm) as Record<string, string> | null,
     notes,
     teamEmail: d.emails?.team ? str(d.emails.team) : null,
     createdAt: iso(d.createdAt),
