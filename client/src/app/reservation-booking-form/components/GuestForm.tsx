@@ -14,7 +14,7 @@ import {
 } from "react-phone-number-input";
 import en from "react-phone-number-input/locale/en";
 import type { Country } from "react-phone-number-input";
-import { phoneCountryOrder } from "../utils/phoneCountries";
+import { cleanWhatsAppDigits, phoneCountryOrder } from "../utils/phoneCountries";
 
 // Styling constants
 const fieldBase =
@@ -137,6 +137,18 @@ const GuestForm = memo(
   }: GuestFormProps) => {
     // Local state to prevent parent re-renders on every keystroke
     const [localData, setLocalData] = useState<GuestDetails>(initialData);
+    // Errors show after "Continue"; a wrong WhatsApp number is flagged as soon
+    // as the visitor leaves the field instead.
+    const [whatsAppLeft, setWhatsAppLeft] = useState(false);
+    const whatsAppError: string | undefined =
+      errors[`guest-${index}-whatsAppNumber`] ||
+      (whatsAppLeft &&
+      localData.whatsAppNumber &&
+      !isValidPhoneNumber(
+        `+${safeGetCountryCallingCode(localData.whatsAppCountry)}${localData.whatsAppNumber}`,
+      )
+        ? "Enter a valid phone number"
+        : undefined);
 
     // Sync local state if initialData changes (e.g. from server refresh or tab switch)
     useEffect(() => {
@@ -460,7 +472,7 @@ const GuestForm = memo(
                         )
                         ? "opacity-50 bg-muted/40 border-green-500 cursor-not-allowed"
                         : "opacity-50 bg-muted/40 border-border cursor-not-allowed"
-                      : errors[`guest-${index}-whatsAppNumber`]
+                      : whatsAppError
                         ? "bg-input border-destructive"
                         : localData.whatsAppNumber &&
                             isValidPhoneNumber(
@@ -487,12 +499,12 @@ const GuestForm = memo(
                     type="tel"
                     value={localData.whatsAppNumber}
                     onChange={(e) => {
-                      const value = e.target.value.replace(/[^0-9]/g, "");
-                      const maxLen = getCountryData(
-                        localData.whatsAppCountry,
-                      ).maxLength;
-                      handleChange("whatsAppNumber", value.slice(0, maxLen));
+                      handleChange(
+                        "whatsAppNumber",
+                        cleanWhatsAppDigits(e.target.value, localData.whatsAppCountry),
+                      );
                     }}
+                    onBlur={() => setWhatsAppLeft(true)}
                     placeholder="123 456 7890"
                     className={`w-full min-w-0 flex-1 truncate bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground/60 ${
                       paymentConfirmed
@@ -508,7 +520,7 @@ const GuestForm = memo(
                       localData.whatsAppCountry,
                     )}${localData.whatsAppNumber}`,
                   ) &&
-                  !errors[`guest-${index}-whatsAppNumber`] && (
+                  !whatsAppError && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 pointer-events-none">
                       <svg
                         className="w-5 h-5"
@@ -525,7 +537,7 @@ const GuestForm = memo(
                   )}
               </div>
             </div>
-            {!!errors[`guest-${index}-whatsAppNumber`] && (
+            {!!whatsAppError && (
               <p className="mt-1.5 text-xs text-destructive flex items-center gap-1">
                 <svg
                   className="w-3.5 h-3.5"
@@ -538,7 +550,7 @@ const GuestForm = memo(
                     clipRule="evenodd"
                   />
                 </svg>
-                {errors[`guest-${index}-whatsAppNumber`]}
+                {whatsAppError}
               </p>
             )}
           </label>

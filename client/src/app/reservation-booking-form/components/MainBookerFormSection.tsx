@@ -1,6 +1,7 @@
+import { useState } from "react";
 import ReactCountryFlag from "react-country-flag";
 import { isValidPhoneNumber } from "react-phone-number-input";
-import { phoneCountryOrder } from "../utils/phoneCountries";
+import { cleanWhatsAppDigits, phoneCountryOrder } from "../utils/phoneCountries";
 import en from "react-phone-number-input/locale/en";
 import BirthdatePicker from "./BirthdatePicker";
 import Select from "./Select";
@@ -73,6 +74,17 @@ export default function MainBookerFormSection({
   getCountryData,
   safeGetCountryCallingCode,
 }: MainBookerFormSectionProps) {
+  // The form hides field errors until "Continue" is pressed; a wrong WhatsApp
+  // number is flagged as soon as the visitor leaves the field instead.
+  const [whatsAppLeft, setWhatsAppLeft] = useState(false);
+  const whatsAppError: string | undefined =
+    errors.whatsAppNumber ||
+    (whatsAppLeft &&
+    whatsAppNumber &&
+    !isValidPhoneNumber(`+${safeGetCountryCallingCode(whatsAppCountry)}${whatsAppNumber}`)
+      ? "Enter a valid phone number"
+      : undefined);
+
   return (
     <div className="transition-all duration-300 ease-out">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
@@ -391,7 +403,7 @@ export default function MainBookerFormSection({
                       )
                       ? "opacity-50 bg-muted/40 border-green-500 cursor-not-allowed"
                       : "opacity-50 bg-muted/40 border-border cursor-not-allowed"
-                    : errors.whatsAppNumber
+                    : whatsAppError
                       ? "bg-input border-destructive"
                       : whatsAppNumber &&
                           isValidPhoneNumber(
@@ -414,9 +426,7 @@ export default function MainBookerFormSection({
                   type="tel"
                   value={whatsAppNumber}
                   onChange={(e) => {
-                    const value = e.target.value.replace(/[^0-9]/g, "");
-                    const maxLen = getCountryData(whatsAppCountry).maxLength;
-                    const limitedValue = value.slice(0, maxLen);
+                    const limitedValue = cleanWhatsAppDigits(e.target.value, whatsAppCountry);
                     setWhatsAppNumber(limitedValue);
 
                     const fullNumber = `+${safeGetCountryCallingCode(whatsAppCountry)}${limitedValue}`;
@@ -436,6 +446,7 @@ export default function MainBookerFormSection({
                     });
                   }}
                   onBlur={() => {
+                    setWhatsAppLeft(true);
                     const fullNumber = whatsAppNumber
                       ? `+${safeGetCountryCallingCode(whatsAppCountry)}${whatsAppNumber}`
                       : "";
@@ -453,7 +464,6 @@ export default function MainBookerFormSection({
                   }}
                   disabled={paymentConfirmed}
                   placeholder="123 456 7890"
-                  maxLength={getCountryData(whatsAppCountry).maxLength}
                   className={`w-full min-w-0 flex-1 truncate bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground/60 ${paymentConfirmed ? "opacity-50 text-muted-foreground cursor-not-allowed" : ""}`}
                 />
               </div>
@@ -461,7 +471,7 @@ export default function MainBookerFormSection({
                 isValidPhoneNumber(
                   `+${safeGetCountryCallingCode(whatsAppCountry)}${whatsAppNumber}`,
                 ) &&
-                !errors.whatsAppNumber && (
+                !whatsAppError && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 pointer-events-none">
                     <svg
                       className="w-5 h-5"
@@ -478,7 +488,7 @@ export default function MainBookerFormSection({
                 )}
             </div>
           </div>
-          {!!errors.whatsAppNumber && (
+          {!!whatsAppError && (
             <p className="mt-1.5 text-xs text-destructive flex items-center gap-1">
               <svg
                 className="w-3.5 h-3.5"
@@ -491,7 +501,7 @@ export default function MainBookerFormSection({
                   clipRule="evenodd"
                 />
               </svg>
-              {errors.whatsAppNumber}
+              {whatsAppError}
             </p>
           )}
         </label>
