@@ -10,11 +10,11 @@ import ReactCountryFlag from "react-country-flag";
 import "react-phone-number-input/style.css";
 import {
   isValidPhoneNumber,
-  getCountries,
   getCountryCallingCode,
 } from "react-phone-number-input";
 import en from "react-phone-number-input/locale/en";
 import type { Country } from "react-phone-number-input";
+import { phoneCountryOrder } from "../utils/phoneCountries";
 
 // Styling constants
 const fieldBase =
@@ -415,7 +415,7 @@ const GuestForm = memo(
                     whatsAppNumber: "", // Clear number when country changes
                   });
                 }}
-                options={getCountries().map((country) => {
+                options={phoneCountryOrder().map((country) => {
                   const data = getCountryData(country);
                   const callingCode = safeGetCountryCallingCode(country);
                   const countryName = en[country] || country;

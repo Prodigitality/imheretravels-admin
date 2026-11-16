@@ -1,5 +1,6 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { getNationalityCountryCode } from "../../utils/nationalityUtils";
+import { isPhoneCountry } from "../../utils/phoneCountries";
 
 export type ReservationGuestDetail = {
   email: string;
@@ -66,6 +67,28 @@ export const useReservationCustomerState = (): ReservationCustomerStateSlice => 
   const [guestDetails, setGuestDetails] = useState<ReservationGuestDetail[]>(
     [],
   );
+
+  // Default WhatsApp country: the visitor's own (IP lookup), else the UK. Only
+  // while the field is untouched: no number, no nationality, still the UK.
+  const latest = useRef({ whatsAppNumber, nationality });
+  useEffect(() => {
+    latest.current = { whatsAppNumber, nationality };
+  }, [whatsAppNumber, nationality]);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/public/geo")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { country?: unknown } | null) => {
+        const code = data?.country;
+        if (!live || !isPhoneCountry(code)) return;
+        if (latest.current.whatsAppNumber || latest.current.nationality) return;
+        setWhatsAppCountry((prev) => (prev === "GB" ? code : prev));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
 
   // Keep existing behavior: update WhatsApp country from selected nationality.
   useEffect(() => {

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, ExternalLink, Inbox, Loader2, Mail, MessageCircle, Phone, RefreshCw, Search } from "lucide-react";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +82,12 @@ function fmtDate(iso: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/** Saved numbers are E.164 (+447911123456); shown spaced, as typed for older leads. */
+function formatPhone(phone: string): string {
+  if (!phone.startsWith("+")) return phone;
+  return parsePhoneNumberFromString(phone)?.formatInternational() ?? phone;
 }
 
 /** wa.me needs the number with country code and digits only. */
@@ -301,7 +308,7 @@ export default function EnquiriesList() {
                       </p>
                       {e.message && <p className="truncate text-xs text-muted-foreground">{e.message}</p>}
                     </TableCell>
-                    <TableCell className={cn(TD, "hidden truncate text-sm lg:table-cell")}>{e.phone || "—"}</TableCell>
+                    <TableCell className={cn(TD, "hidden truncate text-sm lg:table-cell")}>{e.phone ? formatPhone(e.phone) : "—"}</TableCell>
                     <TableCell className={cn(TD, "hidden whitespace-nowrap sm:table-cell")}>
                       <span className="text-sm text-foreground" title={fmtDate(e.createdAt)}>
                         {relativeTime(e.createdAt)}
@@ -397,7 +404,7 @@ function EnquiryDetail({
       ),
     ],
     ["Email", item.email],
-    ["Phone", item.phone || "—"],
+    ["Phone", item.phone ? formatPhone(item.phone) : "—"],
     ["Message", item.message || "—"],
     ["Newsletter", item.subscribe ? "Opted in" : "No"],
     [

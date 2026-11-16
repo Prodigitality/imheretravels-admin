@@ -1,5 +1,6 @@
 import ReactCountryFlag from "react-country-flag";
-import { getCountries, isValidPhoneNumber } from "react-phone-number-input";
+import { isValidPhoneNumber } from "react-phone-number-input";
+import { phoneCountryOrder } from "../utils/phoneCountries";
 import en from "react-phone-number-input/locale/en";
 import BirthdatePicker from "./BirthdatePicker";
 import Select from "./Select";
@@ -349,7 +350,7 @@ export default function MainBookerFormSection({
                 setWhatsAppCountry(code);
                 setWhatsAppNumber("");
               }}
-              options={getCountries().map((country) => {
+              options={phoneCountryOrder().map((country) => {
                 const data = getCountryData(country);
                 const callingCode = safeGetCountryCallingCode(country);
                 const countryName = en[country] || country;
