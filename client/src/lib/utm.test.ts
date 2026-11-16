@@ -46,3 +46,20 @@ describe("reservation draft UTMs", () => {
     expect("utm" in draftDocFields(parsed.input, price)).toBe(false);
   });
 });
+
+describe("reservation draft WhatsApp numbers", () => {
+  it("keeps only digits (and the leading +) for the booker and guests", () => {
+    const parsed = readDraftInput({
+      customer: { email: "a@x.com", firstName: "A", lastName: "B", whatsAppNumber: "+44 7911 12abc3456" },
+      booking: {
+        type: "Duo Booking",
+        groupSize: 2,
+        guestDetails: [{ email: "g@x.com", firstName: "G", lastName: "H", whatsAppNumber: "+63 (917) 123-4567x" }],
+      },
+      tour: { packageId: "tour-1", date: "2026-12-10" },
+    });
+    if (!parsed.ok) throw new Error(parsed.error);
+    expect(parsed.input.customer.whatsAppNumber).toBe("+447911123456");
+    expect(parsed.input.booking.guestDetails[0]?.whatsAppNumber).toBe("+639171234567");
+  });
+});

@@ -29,6 +29,12 @@ const MAX = { name: 100, email: 254, text: 60, phone: 30 } as const;
 const str = (v: unknown, max: number): string =>
   typeof v === "string" ? v.trim().slice(0, max) : "";
 
+/** WhatsApp numbers arrive as "+<code><digits>": letters and symbols are dropped. */
+const phoneDigits = (v: unknown): string => {
+  const s = str(v, MAX.phone);
+  return (s.startsWith("+") ? "+" : "") + s.replace(/[^0-9]/g, "");
+};
+
 export type DraftInput = {
   customer: {
     email: string;
@@ -61,7 +67,7 @@ const readPerson = (p: any) => ({
   lastName: str(p?.lastName, MAX.name),
   birthdate: str(p?.birthdate, MAX.text),
   nationality: str(p?.nationality, MAX.text),
-  whatsAppNumber: str(p?.whatsAppNumber, MAX.phone),
+  whatsAppNumber: phoneDigits(p?.whatsAppNumber),
 });
 
 /**
