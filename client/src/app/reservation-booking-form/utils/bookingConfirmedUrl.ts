@@ -10,8 +10,7 @@
  * payment_record_id is our stripePayments document id (not a Stripe id);
  * booking_id is the SB-… code, sent only when the booking exists by then.
  * value is the reservation fee actually paid; currency is always sent (GBP) so
- * GA4 doesn't fall back to USD. payment_id is the old name of
- * payment_record_id, kept until GTM reads the new key. next.config.ts makes
+ * GA4 doesn't fall back to USD. next.config.ts makes
  * the address safe: in-app navigations to it render the form, and a full load
  * (refresh, shared link) redirects to the plain form URL so it can't count
  * the same booking twice.
@@ -58,7 +57,6 @@ export function markBookingConfirmed(
   (w.dataLayer = w.dataLayer || []).push({
     event: "reservation_confirmed",
     payment_record_id: paymentDocId ?? "",
-    payment_id: paymentDocId ?? "",
     ...(paid?.bookingId ? { booking_id: paid.bookingId } : {}),
     currency: (paid?.currency || "GBP").toUpperCase(),
     ...(Number.isFinite(amount) && amount > 0 ? { value: amount } : {}),

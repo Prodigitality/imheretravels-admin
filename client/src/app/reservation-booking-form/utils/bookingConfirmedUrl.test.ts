@@ -36,7 +36,6 @@ describe("markBookingConfirmed", () => {
       {
         event: "reservation_confirmed",
         payment_record_id: "pay1",
-        payment_id: "pay1",
         booking_id: "SB-TT-20261201-JG001",
         currency: "GBP",
         value: 250,
@@ -48,7 +47,7 @@ describe("markBookingConfirmed", () => {
     const { dataLayer, storage } = setup();
     markBookingConfirmed("pay2", undefined, storage);
     expect(dataLayer).toEqual([
-      { event: "reservation_confirmed", payment_record_id: "pay2", payment_id: "pay2", currency: "GBP" },
+      { event: "reservation_confirmed", payment_record_id: "pay2", currency: "GBP" },
     ]);
   });
 
