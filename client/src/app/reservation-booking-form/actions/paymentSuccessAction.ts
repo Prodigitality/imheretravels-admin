@@ -3,6 +3,9 @@ import {
   getReservation,
 } from "../api/reservationsApi";
 
+/** The reservation fee that was paid, for analytics (GA4 value + currency). */
+export type ConfirmedPayment = { amount?: number; currency?: string };
+
 type PaymentSuccessActionInput = {
   paymentIntentId?: string;
   paymentDocId?: string;
@@ -16,7 +19,7 @@ type PaymentSuccessActionInput = {
   setBookingId: (value: string) => void;
   onError: (error: unknown) => void;
   /** Called once the reservation fee is confirmed (and not refunded). */
-  onConfirmed?: (paymentDocId?: string) => void;
+  onConfirmed?: (paymentDocId?: string, payment?: ConfirmedPayment) => void;
   /** Test seam: how long to wait for the webhook's booking, and how often to look. */
   bookingWait?: { timeoutMs: number; intervalMs: number };
 };
@@ -102,8 +105,10 @@ export const runPaymentSuccessAction = async ({
       }
     }
 
+    let paid: ConfirmedPayment | undefined;
     if (actualPaymentDocId) {
       const finalReservation = await getReservation(actualPaymentDocId).catch(() => null);
+      paid = finalReservation?.payment;
       if (finalReservation?.sale?.conflict) {
         onError(new Error(SALE_CONFLICT_ERROR));
         return;
@@ -118,7 +123,7 @@ export const runPaymentSuccessAction = async ({
     } catch {}
 
     setPaymentConfirmed(true);
-    onConfirmed?.(actualPaymentDocId);
+    onConfirmed?.(actualPaymentDocId, paid);
     if (!completedSteps.includes(1)) {
       setCompletedSteps((prev) => [...prev, 1]);
     }

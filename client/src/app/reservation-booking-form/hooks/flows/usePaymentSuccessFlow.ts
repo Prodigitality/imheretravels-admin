@@ -32,7 +32,7 @@ export const usePaymentSuccessFlow = ({
         setCompletedSteps,
         setPaymentConfirmed,
         setBookingId,
-        onConfirmed: (docId) => markBookingConfirmed(docId),
+        onConfirmed: (docId, paid) => markBookingConfirmed(docId, paid),
         onError: (error) => {
           if (error instanceof Error && error.message === SALE_CONFLICT_ERROR) {
             alert(

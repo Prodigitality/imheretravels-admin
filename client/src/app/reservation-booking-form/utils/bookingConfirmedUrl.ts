@@ -6,7 +6,9 @@
  * The customer stays on the same form (step 3 still has to pick a payment
  * plan), so the address bar moves with history.pushState at the moment the
  * reservation fee is confirmed, once per payment per tab, and dataLayer gets
- * `reservation_confirmed` {payment_id}. next.config.ts makes
+ * `reservation_confirmed` {payment_id, value, currency}. value is the reservation
+ * fee actually paid; currency is always sent (GBP) so GA4 doesn't fall back to
+ * USD. next.config.ts makes
  * the address safe: in-app navigations to it render the form, and a full load
  * (refresh, shared link) redirects to the plain form URL so it can't count
  * the same booking twice.
@@ -16,6 +18,9 @@ export const FORM_PATH = "/reservation-booking-form";
 export const BOOKING_CONFIRMED_PATH = `${FORM_PATH}/booking-confirmed`;
 
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
+
+/** The reservation fee that was paid (from the reservation lookup). */
+export type PaidReservationFee = { amount?: number; currency?: string };
 
 export function bookingConfirmedUrl(search: string, paymentDocId?: string): string {
   const params = new URLSearchParams(search);
@@ -27,6 +32,7 @@ export function bookingConfirmedUrl(search: string, paymentDocId?: string): stri
 /** Returns true when the address bar was moved (false: already done for this payment). */
 export function markBookingConfirmed(
   paymentDocId: string | undefined,
+  paid?: PaidReservationFee,
   storage: StorageLike | null = typeof window !== "undefined" ? window.sessionStorage : null,
 ): boolean {
   if (typeof window === "undefined") return false;
@@ -45,6 +51,12 @@ export function markBookingConfirmed(
   const w = window as unknown as { dataLayer?: unknown[] };
   // "Reservation" (fee paid), not "booking" (tour fully paid). The URL keeps
   // the ad agency's /booking-confirmed name.
-  (w.dataLayer = w.dataLayer || []).push({ event: "reservation_confirmed", payment_id: paymentDocId ?? "" });
+  const amount = Number(paid?.amount);
+  (w.dataLayer = w.dataLayer || []).push({
+    event: "reservation_confirmed",
+    payment_id: paymentDocId ?? "",
+    currency: (paid?.currency || "GBP").toUpperCase(),
+    ...(Number.isFinite(amount) && amount > 0 ? { value: amount } : {}),
+  });
   return true;
 }
