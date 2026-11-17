@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronRight, ExternalLink, Inbox, Loader2, Mail, MessageCircle, Phone, RefreshCw, Search } from "lucide-react";
+import { ChevronRight, ExternalLink, FlaskConical, Inbox, Loader2, Mail, MessageCircle, Phone, RefreshCw, Search } from "lucide-react";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { staffFetch } from "@/lib/staff-fetch";
 import { cn } from "@/lib/utils";
+import { isTestEnquiry, looksLikeTest } from "@/lib/enquiry-test";
 import {
   ENQUIRY_FORM_LABELS,
   ENQUIRY_LOCATION_LABELS,
@@ -55,6 +56,23 @@ const TD = "px-4 py-3.5 align-middle";
 const WWW = "https://www.imheretravels.com";
 /** Tour filter value for messages from the /contact-us form. */
 const CONTACT_FILTER = "__contact_form";
+
+/** Test submissions (lib/enquiry-test) are hidden unless asked for. */
+type TestFilter = "hide" | "only" | "all";
+const TEST_FILTER_LABELS: Record<TestFilter, string> = {
+  hide: "Hide tests",
+  only: "Only tests",
+  all: "Include tests",
+};
+
+function TestBadge() {
+  return (
+    <Badge variant="outline" className="shrink-0 gap-1 rounded-full border-[#DADADA] bg-[#F1F1F1] px-2 py-0 text-[11px] font-medium text-[#505050]">
+      <FlaskConical className="size-3" aria-hidden="true" />
+      Test
+    </Badge>
+  );
+}
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -118,6 +136,7 @@ export default function EnquiriesList() {
   const [error, setError] = useState("");
   const [status, setStatus] = useState<EnquiryStatus | "all">("all");
   const [tour, setTour] = useState<string>("all");
+  const [tests, setTests] = useState<TestFilter>("hide");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get("id"));
 
@@ -146,17 +165,20 @@ export default function EnquiriesList() {
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [items]);
 
-  const fresh = useMemo(() => items.filter((e) => e.status === "new").length, [items]);
+  const testCount = useMemo(() => items.filter(isTestEnquiry).length, [items]);
+  const fresh = useMemo(() => items.filter((e) => e.status === "new" && !isTestEnquiry(e)).length, [items]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return items.filter((e) => {
+      if (tests !== "all" && isTestEnquiry(e) !== (tests === "only")) return false;
       if (status !== "all" && e.status !== status) return false;
       if (tour === CONTACT_FILTER ? e.form !== "contact_us" : tour !== "all" && e.tour?.name !== tour) return false;
       if (!q) return true;
       return [e.name, e.email, e.phone, e.message, e.tour?.name ?? ""].join(" ").toLowerCase().includes(q);
     });
-  }, [items, status, tour, query]);
+  }, [items, status, tour, query, tests]);
+  const filtersOn = status !== "all" || tour !== "all" || tests !== "hide" || !!query;
 
   const selected = items.find((e) => e.id === selectedId) ?? null;
 
@@ -176,9 +198,14 @@ export default function EnquiriesList() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <p className="text-sm text-muted-foreground">
-          {items.length} {items.length === 1 ? "enquiry" : "enquiries"}
+          {items.length - testCount} {items.length - testCount === 1 ? "enquiry" : "enquiries"}
           {fresh > 0 && (
             <span className="ml-2 rounded-full bg-crimson-red px-2 py-0.5 text-xs text-white">{fresh} new</span>
+          )}
+          {testCount > 0 && (
+            <span className="ml-2 text-xs">
+              (+{testCount} test{testCount === 1 ? "" : "s"})
+            </span>
           )}
         </p>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -218,6 +245,18 @@ export default function EnquiriesList() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={tests} onValueChange={(v) => setTests(v as TestFilter)}>
+            <SelectTrigger className="sm:w-40" aria-label="Test submissions">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(TEST_FILTER_LABELS) as TestFilter[]).map((t) => (
+                <SelectItem key={t} value={t}>
+                  {TEST_FILTER_LABELS[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="icon" onClick={() => void load()} disabled={loading} aria-label="Refresh">
             <RefreshCw className={cn("size-4", loading && "animate-spin")} />
           </Button>
@@ -252,10 +291,10 @@ export default function EnquiriesList() {
                 <TableCell colSpan={6} className="px-4 py-16 text-center">
                   <Inbox className="mx-auto size-8 text-muted-foreground/60" aria-hidden="true" />
                   <p className="mt-3 text-sm font-medium text-foreground">
-                    {status !== "all" || tour !== "all" || query ? "No enquiries match these filters" : "No enquiries yet"}
+                    {filtersOn ? "No enquiries match these filters" : "No enquiries yet"}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {status !== "all" || tour !== "all" || query
+                    {filtersOn
                       ? "Try clearing the search or filters."
                       : "Enquiries from the Inquire now buttons and the Contact us form on imheretravels.com appear here."}
                   </p>
@@ -263,7 +302,8 @@ export default function EnquiriesList() {
               </TableRow>
             ) : (
               filtered.map((e) => {
-                const isNew = e.status === "new";
+                const isTest = isTestEnquiry(e);
+                const isNew = e.status === "new" && !isTest;
                 return (
                   <TableRow
                     key={e.id}
@@ -295,9 +335,12 @@ export default function EnquiriesList() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className={cn("truncate text-sm text-foreground", isNew ? "font-semibold" : "font-medium")}>
-                            {e.name}
-                          </p>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <p className={cn("truncate text-sm text-foreground", isNew ? "font-semibold" : "font-medium")}>
+                              {e.name}
+                            </p>
+                            {isTest && <TestBadge />}
+                          </div>
                           <p className="truncate text-xs text-muted-foreground">{e.email}</p>
                         </div>
                       </div>
@@ -331,7 +374,7 @@ export default function EnquiriesList() {
         </Table>
         {!loading && filtered.length > 0 && (
           <div className="border-t bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
-            Showing {filtered.length} of {items.length} enquiries
+            Showing {filtered.length} of {items.length} enquiries{tests === "hide" && testCount > 0 ? ` (${testCount} test${testCount === 1 ? "" : "s"} hidden)` : ""}
           </div>
         )}
       </div>
@@ -357,7 +400,7 @@ function EnquiryDetail({
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState("");
 
-  async function patch(body: { status?: EnquiryStatus; note?: string }) {
+  async function patch(body: { status?: EnquiryStatus; note?: string; test?: boolean | null }) {
     setSaving(true);
     try {
       const res = await staffFetch(`/api/enquiries/${item.id}`, {
@@ -390,6 +433,8 @@ function EnquiryDetail({
     return `https://mail.google.com/mail/u/0/?${params.toString()}`;
   })();
   const wa = whatsappUrl(item.phone);
+  const isTest = isTestEnquiry(item);
+  const auto = looksLikeTest(item);
 
   const rows: [string, React.ReactNode][] = [
     [
@@ -428,7 +473,10 @@ function EnquiryDetail({
   return (
     <div className="space-y-6">
       <SheetHeader>
-        <SheetTitle className="font-hk-grotesk text-xl">{item.name}</SheetTitle>
+        <SheetTitle className="flex items-center gap-2 font-hk-grotesk text-xl">
+          {item.name}
+          {isTest && <TestBadge />}
+        </SheetTitle>
         <SheetDescription>
           {ENQUIRY_FORM_LABELS[item.form]} · received {fmtDate(item.createdAt)}
         </SheetDescription>
@@ -466,6 +514,28 @@ function EnquiryDetail({
             </a>
           </Button>
         )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
+        <span>
+          {isTest
+            ? item.test === true
+              ? "Marked as a test by staff."
+              : "Looks like a test (the word \"test\" is in the name, email, message or campaign)."
+            : item.test === false && auto
+              ? "Marked as a real enquiry by staff."
+              : "Real enquiry."}
+        </span>
+        <Button
+          variant="link"
+          size="sm"
+          className="h-auto p-0 text-crimson-red"
+          disabled={saving}
+          // Back to automatic when the choice matches the automatic check.
+          onClick={() => void patch({ test: !isTest === auto ? null : !isTest })}
+        >
+          {isTest ? "Not a test" : "Mark as test"}
+        </Button>
       </div>
 
       {item.teamEmail === "failed" && (

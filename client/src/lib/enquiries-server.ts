@@ -45,6 +45,7 @@ export function serializeEnquiry(snap: DocumentSnapshot): Enquiry {
     page: str(d.source?.page),
     utm: cleanUtm(d.source?.utm) as Record<string, string> | null,
     notes,
+    test: typeof d.test === "boolean" ? d.test : null,
     teamEmail: d.emails?.team ? str(d.emails.team) : null,
     createdAt: iso(d.createdAt),
     updatedAt: iso(d.updatedAt),

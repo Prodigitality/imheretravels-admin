@@ -16,7 +16,10 @@ function validId(id: string | undefined): id is string {
   return !!id && /^[A-Za-z0-9_-]{1,64}$/.test(id);
 }
 
-/** PATCH { status?, note? }: change follow-up status and/or add an internal note. */
+/**
+ * PATCH { status?, note?, test? }: change follow-up status, add an internal
+ * note, and/or mark it a test submission (true/false; null = automatic).
+ */
 export async function PATCH(request: NextRequest, { params }: Ctx) {
   const staff = await requireStaff(request.headers.get("authorization"));
   if (!staff.ok) return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
@@ -24,7 +27,7 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
   const { id } = await params;
   if (!validId(id)) return NextResponse.json({ success: false, error: "Invalid id" }, { status: 400 });
 
-  let body: { status?: unknown; note?: unknown };
+  let body: { status?: unknown; note?: unknown; test?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -51,6 +54,12 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
       byName: await staffDisplayName(staff.uid),
       at: Timestamp.now(),
     });
+  }
+  if (body.test !== undefined) {
+    if (body.test !== null && typeof body.test !== "boolean") {
+      return NextResponse.json({ success: false, error: "Invalid test flag" }, { status: 400 });
+    }
+    update.test = body.test === null ? FieldValue.delete() : body.test;
   }
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ success: false, error: "Nothing to update" }, { status: 400 });

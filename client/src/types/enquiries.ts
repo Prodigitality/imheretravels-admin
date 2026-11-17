@@ -52,6 +52,8 @@ export interface Enquiry {
   /** Landing-page UTMs saved by www (source.utm), e.g. { utm_source: "facebook" }. */
   utm: Record<string, string> | null;
   notes: EnquiryNote[];
+  /** Staff marked it a test (true) or not a test (false); null = automatic (lib/enquiry-test). */
+  test: boolean | null;
   /** "sent" | "failed" | "skipped_dev" | "pending" */
   teamEmail: string | null;
   /** ISO strings */
