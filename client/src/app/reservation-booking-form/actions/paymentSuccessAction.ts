@@ -3,8 +3,8 @@ import {
   getReservation,
 } from "../api/reservationsApi";
 
-/** The reservation fee that was paid, for analytics (GA4 value + currency). */
-export type ConfirmedPayment = { amount?: number; currency?: string };
+/** The reservation fee that was paid and its booking, for analytics (GA4). */
+export type ConfirmedPayment = { amount?: number; currency?: string; bookingId?: string };
 
 type PaymentSuccessActionInput = {
   paymentIntentId?: string;
@@ -68,6 +68,7 @@ export const runPaymentSuccessAction = async ({
     // The server checks the payment with Stripe and records "reserve_paid";
     // the browser no longer writes the status or the intent id itself.
     let actualPaymentDocId = paymentDocId;
+    let confirmedBookingId = "";
     if (paymentIntentId) {
       try {
         const confirmed = await confirmReservationPayment(paymentIntentId, paymentDocId);
@@ -93,6 +94,7 @@ export const runPaymentSuccessAction = async ({
 
       if (response.ok) {
         setBookingId(result.bookingId);
+        confirmedBookingId = result.bookingId || "";
       }
     } else if (
       actualPaymentDocId &&
@@ -102,13 +104,21 @@ export const runPaymentSuccessAction = async ({
       const createdBookingId = await waitForBookingId(actualPaymentDocId, bookingWait);
       if (createdBookingId) {
         setBookingId(createdBookingId);
+        confirmedBookingId = createdBookingId;
       }
     }
 
     let paid: ConfirmedPayment | undefined;
     if (actualPaymentDocId) {
       const finalReservation = await getReservation(actualPaymentDocId).catch(() => null);
-      paid = finalReservation?.payment;
+      const lookedUpBookingId = finalReservation?.booking?.id;
+      paid = {
+        amount: finalReservation?.payment?.amount,
+        currency: finalReservation?.payment?.currency,
+        bookingId:
+          confirmedBookingId ||
+          (lookedUpBookingId && lookedUpBookingId !== "PENDING" ? lookedUpBookingId : undefined),
+      };
       if (finalReservation?.sale?.conflict) {
         onError(new Error(SALE_CONFLICT_ERROR));
         return;
