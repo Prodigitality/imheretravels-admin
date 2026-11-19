@@ -10,7 +10,8 @@
  * payment_record_id is our stripePayments document id (not a Stripe id);
  * booking_id is the SB-… code, sent only when the booking exists by then.
  * value is the reservation fee actually paid; currency is always sent (GBP) so
- * GA4 doesn't fall back to USD. next.config.ts makes
+ * GA4 doesn't fall back to USD. event_id (= payment_record_id) is the Meta
+ * event ID for Purchase; tour_name is the tour package's name. next.config.ts makes
  * the address safe: in-app navigations to it render the form, and a full load
  * (refresh, shared link) redirects to the plain form URL so it can't count
  * the same booking twice.
@@ -22,7 +23,7 @@ export const BOOKING_CONFIRMED_PATH = `${FORM_PATH}/booking-confirmed`;
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
 
 /** The reservation fee that was paid and its booking (from the reservation lookup). */
-export type PaidReservationFee = { amount?: number; currency?: string; bookingId?: string };
+export type PaidReservationFee = { amount?: number; currency?: string; bookingId?: string; tourName?: string };
 
 export function bookingConfirmedUrl(search: string, paymentDocId?: string): string {
   const params = new URLSearchParams(search);
@@ -57,7 +58,9 @@ export function markBookingConfirmed(
   (w.dataLayer = w.dataLayer || []).push({
     event: "reservation_confirmed",
     payment_record_id: paymentDocId ?? "",
+    ...(paymentDocId ? { event_id: paymentDocId } : {}),
     ...(paid?.bookingId ? { booking_id: paid.bookingId } : {}),
+    ...(paid?.tourName ? { tour_name: paid.tourName } : {}),
     currency: (paid?.currency || "GBP").toUpperCase(),
     ...(Number.isFinite(amount) && amount > 0 ? { value: amount } : {}),
   });

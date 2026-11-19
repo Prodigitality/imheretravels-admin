@@ -30,13 +30,21 @@ describe("markBookingConfirmed", () => {
 
   it("pushes the paid fee as GA4 value with its currency", () => {
     const { dataLayer, pushState, storage } = setup();
-    expect(markBookingConfirmed("pay1", { amount: 250, currency: "gbp", bookingId: "SB-TT-20261201-JG001" }, storage)).toBe(true);
+    expect(
+      markBookingConfirmed(
+        "pay1",
+        { amount: 250, currency: "gbp", bookingId: "SB-TT-20261201-JG001", tourName: "Test Tour" },
+        storage,
+      ),
+    ).toBe(true);
     expect(pushState).toHaveBeenCalledWith(null, "", `${BOOKING_CONFIRMED_PATH}?tour=test-tour&paymentid=pay1`);
-    expect(dataLayer).toEqual([
+    expect(dataLayer).toStrictEqual([
       {
         event: "reservation_confirmed",
         payment_record_id: "pay1",
+        event_id: "pay1",
         booking_id: "SB-TT-20261201-JG001",
+        tour_name: "Test Tour",
         currency: "GBP",
         value: 250,
       },
@@ -46,8 +54,8 @@ describe("markBookingConfirmed", () => {
   it("still sends GBP (and no value) when the amount is unknown", () => {
     const { dataLayer, storage } = setup();
     markBookingConfirmed("pay2", undefined, storage);
-    expect(dataLayer).toEqual([
-      { event: "reservation_confirmed", payment_record_id: "pay2", currency: "GBP" },
+    expect(dataLayer).toStrictEqual([
+      { event: "reservation_confirmed", payment_record_id: "pay2", event_id: "pay2", currency: "GBP" },
     ]);
   });
 

@@ -5,6 +5,8 @@ import { markBookingConfirmed } from "../../utils/bookingConfirmedUrl";
 type UsePaymentSuccessFlowOptions = {
   email: string;
   tourPackage: string;
+  /** The tour package's name, sent to GTM with reservation_confirmed. */
+  tourName?: string;
   completedSteps: number[];
   setCompletedSteps: (
     update: number[] | ((prev: number[]) => number[]),
@@ -16,6 +18,7 @@ type UsePaymentSuccessFlowOptions = {
 export const usePaymentSuccessFlow = ({
   email,
   tourPackage,
+  tourName,
   completedSteps,
   setCompletedSteps,
   setPaymentConfirmed,
@@ -32,7 +35,7 @@ export const usePaymentSuccessFlow = ({
         setCompletedSteps,
         setPaymentConfirmed,
         setBookingId,
-        onConfirmed: (docId, paid) => markBookingConfirmed(docId, paid),
+        onConfirmed: (docId, paid) => markBookingConfirmed(docId, { ...paid, tourName }),
         onError: (error) => {
           if (error instanceof Error && error.message === SALE_CONFLICT_ERROR) {
             alert(
@@ -50,6 +53,7 @@ export const usePaymentSuccessFlow = ({
     [
       email,
       tourPackage,
+      tourName,
       completedSteps,
       setCompletedSteps,
       setPaymentConfirmed,

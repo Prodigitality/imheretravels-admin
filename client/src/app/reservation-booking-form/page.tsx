@@ -555,6 +555,7 @@ const Page = () => {
   const { handlePaymentSuccess } = usePaymentSuccessFlow({
     email,
     tourPackage,
+    tourName: selectedPackage?.name || undefined,
     completedSteps,
     setCompletedSteps,
     setPaymentConfirmed,
