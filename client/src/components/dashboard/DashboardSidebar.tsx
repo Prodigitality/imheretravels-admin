@@ -31,6 +31,7 @@ import {
   ShieldAlert,
   BookOpen,
   Handshake,
+  UserCheck,
   Inbox,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth-store";
@@ -66,6 +67,12 @@ const navigation = [
     href: "/transactions",
     icon: Banknote,
     description: "View all payments",
+  },
+  {
+    name: "Account Claims",
+    href: "/account-claims",
+    icon: UserCheck,
+    description: "Customer bookings to confirm",
   },
   { type: "separator", label: "Catalog & Content" },
   {
