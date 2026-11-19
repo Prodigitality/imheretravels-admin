@@ -22,6 +22,7 @@ export { sendBookingConfirmationEmail } from "./send-booking-confirmation-email"
 export { sendBookingStatusConfirmation } from "./send-booking-status-confirmation"; // Callable function to send booking status confirmation with QR code
 export { sendGuestInvitationEmails } from "./send-guest-invitations"; // Callable function to send guest invitation emails
 export { onGuestInvitationTrigger } from "./on-guest-invitation-trigger"; // Trigger: auto-create + send guest invitation when paymentProgress reaches 50%
+export { onBookingEmailNormalised } from "./on-booking-email-normalised"; // Trigger: keeps bookings.emailAddressNormalised in step for customer-portal matching
 export { onReservationPaid } from "./on-reservation-paid"; // Trigger: Reservation Confirmed email right after the fee is paid
 export { onStripePaymentSuccess } from "./on-stripe-payment-success"; // Trigger for Stripe payment success notifications
 // export { getDraftSubject } from "./get-draft-subject";
