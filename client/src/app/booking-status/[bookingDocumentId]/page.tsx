@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AccountPromptBanner } from "@/components/booking-status/AccountPromptBanner";
+import type { AccountPrompt } from "@/lib/account-prompt";
 import { useParams, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { format } from "date-fns";
@@ -161,6 +163,7 @@ export default function BookingStatusPage() {
   const email = searchParams.get("email");
 
   const [booking, setBooking] = useState<BookingData | null>(null);
+  const [accountPrompt, setAccountPrompt] = useState<AccountPrompt | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paymentProcessing, setPaymentProcessing] = useState<string | null>(
@@ -337,6 +340,7 @@ export default function BookingStatusPage() {
         setBooking(
           timestampsFromWire(result.data, (s, n) => new Timestamp(s, n)) as BookingData,
         );
+        setAccountPrompt((result.accountPrompt as AccountPrompt | null) ?? null);
         setError(null);
       } catch (err) {
         console.error("Failed to load booking details:", err);
@@ -997,6 +1001,9 @@ export default function BookingStatusPage() {
             </div>
           </div>
         )}
+
+        {/* Optional account offer (portal docs/05 P13); hidden unless the portal is configured */}
+        <AccountPromptBanner prompt={accountPrompt} />
 
         {/* Important Notice */}
         <div className="mb-4 sm:mb-6 bg-amber-50 border-l-4 border-amber-500 p-3 sm:p-4 rounded-r-lg print:border print:border-amber-200">

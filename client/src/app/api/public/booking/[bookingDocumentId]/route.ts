@@ -15,6 +15,7 @@ import {
   timestampsToWire,
   type PublicPreDeparturePack,
 } from "@/lib/public-booking-view";
+import { accountPromptFor } from "@/lib/account-prompt-server";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,8 @@ export const dynamic = "force-dynamic";
  * The booking-status page's only data source (it used to read Firestore from
  * the browser). Holding the booking's `access_token` is the authorisation;
  * `?email=` must match when given. Returns an allowlisted projection, with
- * Timestamps tagged for `timestampsFromWire`.
+ * Timestamps tagged for `timestampsFromWire`. `accountPrompt` (beside `data`)
+ * carries the optional "create an account" links, or null (portal docs/05 P13).
  */
 export async function GET(
   request: NextRequest,
@@ -68,15 +70,16 @@ export async function GET(
       );
     }
 
-    const view = buildPublicBookingView(
-      bookingDoc.id,
-      bookingData,
-      await findPreDeparturePack(bookingDoc.id),
-      { includePaymentTokens: process.env.NEXT_PUBLIC_ENV === "development" },
-    );
+    const [pack, accountPrompt] = await Promise.all([
+      findPreDeparturePack(bookingDoc.id),
+      accountPromptFor(bookingDoc.id, bookingData),
+    ]);
+    const view = buildPublicBookingView(bookingDoc.id, bookingData, pack, {
+      includePaymentTokens: process.env.NEXT_PUBLIC_ENV === "development",
+    });
 
     return NextResponse.json(
-      { success: true, data: timestampsToWire(view) },
+      { success: true, data: timestampsToWire(view), accountPrompt },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
