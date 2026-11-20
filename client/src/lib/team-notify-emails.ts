@@ -127,7 +127,7 @@ export function buildHoldEmail(hold: SaleHoldView, holderEmail: string, utm: Utm
   const rows: [string, string][] = [
     ["Tour", hold.tourName],
     ["Sale", hold.saleName],
-    ["Slots held", `${people} (slot ${hold.slots.map((s) => s.index).join(", ")})`],
+    ["Slots held", `${people} (slot${hold.slots.length === 1 ? "" : "s"} ${hold.slots.map((s) => s.index).join(", ")})`],
     ...(fromPrice !== null ? ([["Sale price", `from ${gbp(fromPrice)} per person`]] as [string, string][]) : []),
     ["Customer email", holderEmail],
     ["Held until", `${until} (UK time)`],
