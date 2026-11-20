@@ -1,5 +1,6 @@
 // /api/stripe-payments/webhook/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { emailTeamAboutDeposit } from "@/lib/team-notify-emails";
 import Stripe from "stripe";
 import {
   db,
@@ -133,6 +134,17 @@ export async function POST(req: NextRequest) {
                 );
                 // Don't block the webhook
               }
+              // Team email (bella@, jay@) with UTMs; at most once per payment.
+              after(() =>
+                emailTeamAboutDeposit({
+                  paymentDocId: paymentDoc.id,
+                  bookingId: result.bookingIds[0],
+                  bookingDocumentId: result.bookingDocumentIds[0],
+                  travelerName: `${result.mainBooker.firstName} ${result.mainBooker.lastName}`.trim(),
+                  tourPackageName: result.tourPackageName,
+                  amount: result.reservationFeeTotal,
+                }),
+              );
             } else {
               console.log(
                 "✅ Booking already existed for this payment, skipping creation",

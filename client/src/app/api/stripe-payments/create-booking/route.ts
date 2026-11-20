@@ -6,7 +6,8 @@
 // Both this endpoint and the Stripe webhook delegate to
 // createBookingsForReservationPayment so the two flows stay in sync.
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { emailTeamAboutDeposit } from "@/lib/team-notify-emails";
 import {
   createBookingsForReservationPayment,
   CreateBookingsError,
@@ -65,6 +66,18 @@ export async function POST(req: NextRequest) {
     } catch (notificationError) {
       console.error("❌ Failed to create notification:", notificationError);
     }
+    // Team email (bella@, jay@) with the visit's UTMs, after the response;
+    // sent at most once per payment whichever route gets here first.
+    after(() =>
+      emailTeamAboutDeposit({
+        paymentDocId,
+        bookingId: result.bookingIds[0],
+        bookingDocumentId: result.bookingDocumentIds[0],
+        travelerName: `${result.mainBooker.firstName} ${result.mainBooker.lastName}`.trim(),
+        tourPackageName: result.tourPackageName,
+        amount: result.reservationFeeTotal,
+      }),
+    );
 
     return NextResponse.json({
       success: true,

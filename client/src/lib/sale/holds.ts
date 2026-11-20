@@ -3,6 +3,7 @@ import "server-only";
 import Stripe from "stripe";
 import { FieldValue, type DocumentReference, type DocumentSnapshot, type Timestamp, type Transaction } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin-db";
+import type { Utm } from "@/lib/utm";
 import type { HoldStatus, SaleHoldView, SlotStatus } from "@/types/sale-events";
 import {
   HOLD_GRACE_MS,
@@ -77,6 +78,8 @@ interface StoredHold {
   payingAt?: Timestamp | null;
   paymentDocId?: string | null;
   stripeIntentId?: string | null;
+  /** Landing-page UTMs of the visit that made the hold, when it had any. */
+  utm?: Utm | null;
 }
 
 const stripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -152,6 +155,8 @@ export interface ClaimInput {
   email: string;
   /** Slot indexes the customer was looking at when they tapped Hold. */
   shownSlots?: number[];
+  /** The visit's landing-page UTMs, already cleaned (lib/utm.ts). */
+  utm?: Utm | null;
 }
 
 export async function claimSlots(input: ClaimInput): Promise<SaleHoldView & { token: string }> {
@@ -295,6 +300,7 @@ export async function claimSlots(input: ClaimInput): Promise<SaleHoldView & { to
       payingAt: null,
       paymentDocId: null,
       stripeIntentId: null,
+      ...(input.utm ? { utm: input.utm } : {}),
     };
     tx.create(newRef, { ...hold, createdAt: FieldValue.serverTimestamp() });
 

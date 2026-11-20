@@ -2,7 +2,8 @@
 // This API creates a guest booking document after successful payment.
 // It uses the same createBookingData function as the main booking.
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { emailTeamAboutDeposit } from "@/lib/team-notify-emails";
 import {
   db,
   collection,
@@ -612,6 +613,18 @@ export async function POST(req: NextRequest) {
     } catch (notificationError) {
       console.error("❌ Failed to create guest notification:", notificationError);
     }
+    // Team email (bella@, jay@) with UTMs, after the response; once per payment.
+    after(() =>
+      emailTeamAboutDeposit({
+        paymentDocId,
+        bookingId: bookingData.bookingId,
+        bookingDocumentId: newBookingRef.id,
+        travelerName: `${guestData.firstName || ""} ${guestData.lastName || ""}`.trim(),
+        tourPackageName: paymentData.tour?.packageName || parentBooking.tourName || "",
+        amount: Number(paymentData.payment?.amount) || 0,
+        guestOf: parentBookingMainBookerName || "the main booker",
+      }),
+    );
 
     // 16. Return success response
     return NextResponse.json({
