@@ -10,10 +10,14 @@ export interface RawTravelDate {
   customOriginal?: number | null;
 }
 
-/** Same date key the reservation form uses: the UTC ISO day of startDate. */
+/**
+ * Same date key the reservation form uses: the UTC ISO day of startDate.
+ * Takes a Firestore Timestamp, or one that went through JSON: the client SDK
+ * gives {seconds}, firebase-admin {_seconds} (the staff /api/tours route).
+ */
 export function travelDateKey(startDate: unknown): string | null {
   if (startDate == null) return null;
-  const v = startDate as { toMillis?: () => number; toDate?: () => Date; seconds?: number };
+  const v = startDate as { toMillis?: () => number; toDate?: () => Date; seconds?: number; _seconds?: number };
   const ms =
     typeof v.toMillis === "function"
       ? v.toMillis()
@@ -21,7 +25,9 @@ export function travelDateKey(startDate: unknown): string | null {
         ? v.toDate().getTime()
         : typeof v.seconds === "number"
           ? v.seconds * 1000
-          : typeof startDate === "string" || typeof startDate === "number"
+          : typeof v._seconds === "number"
+            ? v._seconds * 1000
+            : typeof startDate === "string" || typeof startDate === "number"
             ? new Date(startDate).getTime()
             : NaN;
   return Number.isFinite(ms) ? new Date(ms).toISOString().slice(0, 10) : null;

@@ -54,6 +54,14 @@ describe("date-based sale pricing", () => {
     expect(slotPrice(300, { discountGBP: 500 }).salePrice).toBe(0);
     expect(travelDateKey(at("2027-01-31T01:00:00Z"))).toBe("2027-01-31");
   });
+
+  it("reads dates that came through JSON from the staff tours API", () => {
+    const s = Date.parse("2027-03-01T00:00:00Z") / 1000;
+    expect(travelDateKey({ _seconds: s, _nanoseconds: 0 })).toBe("2027-03-01");
+    expect(travelDateKey({ seconds: s, nanoseconds: 0 })).toBe("2027-03-01");
+    const info = tourPriceInfo(1199, [{ startDate: { _seconds: s, _nanoseconds: 0 } }], NOW);
+    expect([...info.byDate.keys()]).toEqual(["2027-03-01"]);
+  });
 });
 
 describe("percent slots", () => {
