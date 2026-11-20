@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { db, doc, getDoc, updateDoc, deleteDoc, serverTimestamp } from "@/lib/server-firestore";
+import { firstEmailDomainProblem } from "@/lib/email-domain";
 import {
   bookingPaymentPlan,
   draftDocFields,
@@ -77,6 +78,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const parsed = readDraftInput(await req.json().catch(() => null));
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    // An email domain that can't take mail (e.g. "gmaill.com"): the booking emails would bounce.
+    const emailProblem = await firstEmailDomainProblem([
+      parsed.input.customer.email,
+      ...parsed.input.booking.guestDetails.map((g) => g.email),
+    ]);
+    if (emailProblem) return NextResponse.json({ error: emailProblem }, { status: 400 });
     const price = await priceDraft(parsed.input);
     if (!price.ok) return NextResponse.json({ error: price.error }, { status: 400 });
 

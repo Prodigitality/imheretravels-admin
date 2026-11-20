@@ -5,6 +5,7 @@ import { cleanWhatsAppDigits, phoneCountryOrder } from "../utils/phoneCountries"
 import en from "react-phone-number-input/locale/en";
 import BirthdatePicker from "./BirthdatePicker";
 import Select from "./Select";
+import EmailSuggestion from "./EmailSuggestion";
 
 type NationalityOption = {
   label: React.ReactNode;
@@ -139,6 +140,7 @@ export default function MainBookerFormSection({
               </div>
             )}
           </div>
+          <EmailSuggestion email={email} onUse={setEmail} disabled={paymentConfirmed} />
           {errors.email && (
             <p
               id="email-error"

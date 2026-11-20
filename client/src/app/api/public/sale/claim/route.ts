@@ -4,6 +4,7 @@ import { claimSlots } from "@/lib/sale/holds";
 import { MAX_PARTY_SIZE, MAX_SLOTS } from "@/lib/sale/slots";
 import { SALE_LIMITS, clientIp, errorResponse, json, preflight, rateLimit } from "@/lib/sale/http";
 import { cleanUtm } from "@/lib/utm";
+import { emailDomainProblem } from "@/lib/email-domain";
 import { emailTeamAboutHold } from "@/lib/team-notify-emails";
 
 /**
@@ -37,6 +38,9 @@ export async function POST(req: NextRequest) {
   try {
     await rateLimit(SALE_LIMITS.claimPerIp, clientIp(req));
     await rateLimit(SALE_LIMITS.claimPerEmail, parsed.data.email.toLowerCase());
+    // A domain that can't take mail (e.g. "gmaill.com"): the hold and payment emails would bounce.
+    const emailProblem = await emailDomainProblem(parsed.data.email.trim().toLowerCase());
+    if (emailProblem) return json(req, { error: "email_domain", message: emailProblem }, { status: 400 });
     const utm = cleanUtm(parsed.data.utm);
     const { utm: _raw, ...input } = parsed.data;
     const hold = await claimSlots({ ...input, utm });

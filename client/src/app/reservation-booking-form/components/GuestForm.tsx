@@ -15,6 +15,7 @@ import {
 import en from "react-phone-number-input/locale/en";
 import type { Country } from "react-phone-number-input";
 import { cleanWhatsAppDigits, phoneCountryOrder } from "../utils/phoneCountries";
+import EmailSuggestion from "./EmailSuggestion";
 
 // Styling constants
 const fieldBase =
@@ -246,6 +247,7 @@ const GuestForm = memo(
                   </div>
                 )}
             </div>
+            <EmailSuggestion email={localData.email} onUse={(fixed) => handleChange("email", fixed)} disabled={paymentConfirmed} />
             {errors[`guest-${index}-email`] && (
               <p className="mt-1.5 text-xs text-destructive flex items-center gap-1">
                 <svg

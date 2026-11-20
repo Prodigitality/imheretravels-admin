@@ -271,7 +271,10 @@ const Page = () => {
       return newDocId;
     } catch (err) {
       console.error("Error creating payment placeholder:", err);
-      alert("Unable to create payment record. Please try again.");
+      // A 400 is a problem with what was entered (e.g. an email domain that
+      // can't take mail): show the server's own message.
+      const status = (err as { status?: number })?.status;
+      alert(status === 400 && err instanceof Error ? err.message : "Unable to create payment record. Please try again.");
       return null;
     }
   };

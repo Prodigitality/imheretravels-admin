@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, collection, addDoc, updateDoc, serverTimestamp } from "@/lib/server-firestore";
 import { draftDocFields, priceDraft, readDraftInput } from "@/lib/public-reservations-server";
+import { firstEmailDomainProblem } from "@/lib/email-domain";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,12 @@ export async function POST(req: NextRequest) {
   try {
     const parsed = readDraftInput(await req.json().catch(() => null));
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    // An email domain that can't take mail (e.g. "gmaill.com"): the booking emails would bounce.
+    const emailProblem = await firstEmailDomainProblem([
+      parsed.input.customer.email,
+      ...parsed.input.booking.guestDetails.map((g) => g.email),
+    ]);
+    if (emailProblem) return NextResponse.json({ error: emailProblem }, { status: 400 });
 
     const price = await priceDraft(parsed.input);
     if (!price.ok) return NextResponse.json({ error: price.error }, { status: 400 });
