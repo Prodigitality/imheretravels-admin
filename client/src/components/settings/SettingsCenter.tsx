@@ -33,6 +33,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import UserManagement from "./UserManagement";
+import TeamNotificationRecipients from "./TeamNotificationRecipients";
 import TabPermissionGuard from "@/components/auth/TabPermissionGuard";
 
 export default function SettingsCenter() {
@@ -152,6 +153,7 @@ export default function SettingsCenter() {
             permission="canManageEmails"
             tabName="Email Settings"
           >
+            <TeamNotificationRecipients canEdit={userProfile?.role === "admin" || !!canManageEmails} />
             <Card className="border border-royal-purple/20 dark:border-border shadow hover:shadow-md transition-all duration-200">
               <CardHeader className="bg-muted/50 border-b border-royal-purple/20 dark:border-border">
                 <CardTitle className="text-foreground">

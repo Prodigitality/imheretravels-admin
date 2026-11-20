@@ -4,7 +4,8 @@ import "server-only";
  * Team emails for the two Black Friday moments the website can't see:
  *  - a slot hold (www sale page → /api/public/sale/claim)
  *  - a reservation fee paid (deposit), main booker or guest
- * They go to TEAM_NOTIFY_RECIPIENTS: bella@ follows up, jay@ (WaveX, the ad
+ * They go to the team recipients (Settings → Email Settings, lib/team-recipients.ts):
+ * bella@ follows up, jay@ (WaveX, the ad
  * agency) checks what Meta reports against what actually comes in. Each
  * shows the visit's UTMs. Tour enquiries and contact messages are emailed by
  * the website itself (www lib/lead-emails.ts), in the same branded layout.
@@ -17,9 +18,8 @@ import { adminDb } from "@/lib/firebase-admin-db";
 import GmailApiService from "@/lib/gmail/gmail-api-service";
 import { UTM_KEYS, type Utm } from "@/lib/utm";
 import type { SaleHoldView } from "@/types/sale-events";
+import { getTeamRecipientEmails } from "@/lib/team-recipients-server";
 
-/** Keep in step with www lib/lead-recipients.ts. */
-export const TEAM_NOTIFY_RECIPIENTS = ["bella@imheretravels.com", "jay@imheretravels.com"] as const;
 const SENDER = "IHT Website <bella@imheretravels.com>";
 const ADMIN_BASE_URL = process.env.NEXT_PUBLIC_ADMIN_BASE_URL || "https://admin.imheretravels.com";
 const SITE_URL = "https://www.imheretravels.com";
@@ -109,7 +109,8 @@ export function travelDateLabel(v: unknown): string {
   return Number.isFinite(ms) ? dayLabel.format(ms) : "";
 }
 
-async function send(to: readonly string[], subject: string, html: string, replyTo?: string) {
+async function send(subject: string, html: string, replyTo?: string) {
+  const to = await getTeamRecipientEmails();
   await new GmailApiService().sendEmail({ to: to.join(", "), subject, htmlContent: html, from: SENDER, replyTo });
 }
 
@@ -147,7 +148,7 @@ ${campaignHtml(utm)}
 export async function emailTeamAboutHold(hold: SaleHoldView, holderEmail: string, utm: Utm | null | undefined) {
   try {
     const { subject, html } = buildHoldEmail(hold, holderEmail, utm);
-    await send(TEAM_NOTIFY_RECIPIENTS, subject, html, holderEmail);
+    await send(subject, html, holderEmail);
   } catch (e) {
     console.error("[team-notify] hold email failed", hold.holdId, e);
   }
@@ -234,7 +235,7 @@ export async function emailTeamAboutDeposit(d: DepositInput) {
     if (!data) return;
     const details = depositDetails(data);
     const { subject, html } = buildDepositEmail(d, details);
-    await send(TEAM_NOTIFY_RECIPIENTS, subject, html, details.email);
+    await send(subject, html, details.email);
   } catch (e) {
     console.error("[team-notify] deposit email failed", d.paymentDocId, e);
   }
