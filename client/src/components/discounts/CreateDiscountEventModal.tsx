@@ -153,6 +153,9 @@ export default function CreateDiscountEventModal({
               return startDate.toISOString().split("T")[0];
             } else if (startDate && typeof startDate === "object" && "seconds" in startDate) {
               return new Date(startDate.seconds * 1000).toISOString().split("T")[0];
+            } else if (startDate && typeof startDate === "object" && "_seconds" in startDate) {
+              // firebase-admin Timestamp after JSON (the staff /api/tours route)
+              return new Date(startDate._seconds * 1000).toISOString().split("T")[0];
             }
             return "";
           })
