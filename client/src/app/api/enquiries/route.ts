@@ -12,7 +12,7 @@ const MAX_DOCS = 1000;
  * Filtering (status / search) happens in the UI.
  */
 export async function GET(request: NextRequest) {
-  const staff = await requireStaff(request.headers.get("authorization"));
+  const staff = await requireStaff(request.headers.get("authorization"), { allowViewer: true });
   if (!staff.ok) {
     return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
   }

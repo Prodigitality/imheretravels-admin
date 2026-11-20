@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Search, Mail, User, Lock, AlertTriangle } from "lucide-react";
+import { Menu, X, Search, Mail, User, Lock, AlertTriangle, Eye } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { VIEWER_PAGES, isViewerRole, viewerMayOpen } from "@/lib/viewer-access";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -36,6 +38,16 @@ export default function DashboardLayout({ children, fullWidth = false }: Dashboa
   const { sidebarCollapsed, setSidebarCollapsed } = useSidebar();
   const { userProfile, signOut, isLoading } = useAuthStore();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  // Read-only viewer (lib/viewer-access.ts): only their pages, no global
+  // search (it reads collections they can't), a banner saying so.
+  const isViewer = isViewerRole(userProfile?.role);
+  const viewerOffLimits = isViewer && !viewerMayOpen(pathname ?? "");
+
+  useEffect(() => {
+    if (viewerOffLimits) router.replace(VIEWER_PAGES[0]);
+  }, [viewerOffLimits, router]);
 
   const handleSignOut = async () => {
     try {
@@ -54,7 +66,7 @@ export default function DashboardLayout({ children, fullWidth = false }: Dashboa
   // Global search keyboard shortcut (Cmd+K / Ctrl+K)
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+      if ((event.metaKey || event.ctrlKey) && event.key === "k" && !isViewer) {
         event.preventDefault();
         setSearchDialogOpen(true);
       }
@@ -62,7 +74,7 @@ export default function DashboardLayout({ children, fullWidth = false }: Dashboa
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [isViewer]);
 
   return (
     <AuthGuard>
@@ -316,8 +328,16 @@ export default function DashboardLayout({ children, fullWidth = false }: Dashboa
             </div>
           )}
 
+          {isViewer && (
+            <div className="border-b border-royal-purple/20 bg-royal-purple/10 px-4 py-2 text-center text-sm text-foreground">
+              <Eye className="mr-2 inline h-4 w-4 align-[-2px] text-royal-purple" aria-hidden="true" />
+              Read-only access: you can view Bookings, Tour Packages, Enquiries and Transactions, but changes won&apos;t be
+              saved.
+            </div>
+          )}
+
           {/* Page content */}
-          {fullWidth ? (
+          {viewerOffLimits ? null : fullWidth ? (
             <main>{children}</main>
           ) : (
             <main className="py-6">
@@ -347,7 +367,7 @@ export default function DashboardLayout({ children, fullWidth = false }: Dashboa
 
         {/* Global Search Dialog */}
         <GlobalSearchDialog
-          open={searchDialogOpen}
+          open={searchDialogOpen && !isViewer}
           onOpenChange={setSearchDialogOpen}
         />
       </div>

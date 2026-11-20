@@ -29,6 +29,24 @@ service cloud.firestore {
       return isStaff() && userDoc().role == 'admin';
     }
 
+    // An approved read-only viewer (admin lib/viewer-access.ts): reads what
+    // Bookings, Tour Packages and Transactions load in the browser, writes
+    // nothing. Enquiries and sales reach them through API routes instead.
+    function isViewer() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().get('isApproved', false) == true
+        && userDoc().get('role', '') == 'viewer';
+    }
+
+    function viewerReadable(collection) {
+      return collection in [
+        'bookings', 'confirmedBookings', 'guestInvitations', 'preDeparturePack',
+        'stripePayments', 'bookingVersions', 'discountEvents', 'notifications',
+        'config'
+      ];
+    }
+
     // Collections no client may touch, not even staff. The server reads them
     // with firebase-admin.
     //   users: own rules below
@@ -62,6 +80,7 @@ service cloud.firestore {
     // (bookings, tours, templates, scheduled emails, …) from the browser.
     match /{collection}/{document=**} {
       allow read, write: if isStaff() && !staffClosed(collection);
+      allow read: if isViewer() && viewerReadable(collection);
     }
 
     // Public catalog: the reservation form and booking-status page read these

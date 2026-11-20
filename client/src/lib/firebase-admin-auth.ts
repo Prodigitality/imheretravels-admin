@@ -6,7 +6,8 @@ import {
 } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 
-function getFirebaseAdminAuth() {
+/** The default app's Auth (also used to create invited staff accounts). */
+export function getFirebaseAdminAuth() {
   // Look for the default app specifically: firebase-admin-db.ts creates a
   // named "server-db" app, and when that runs first in a warm instance (any
   // sale route) a plain getApps().length check would skip creating the

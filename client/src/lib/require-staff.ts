@@ -11,11 +11,17 @@ import { adminDb } from "@/lib/firebase-admin-db";
  * Firestore rules are locked down) and requires an approved admin or agent.
  */
 export type RequireStaffResult =
-  | { ok: true; uid: string; role: "admin" | "agent" }
+  | { ok: true; uid: string; role: "admin" | "agent" | "viewer" }
   | { ok: false; status: number; error: string };
 
+/**
+ * `allowViewer`: also let an approved read-only "viewer" through. Only GET
+ * routes behind the viewer's pages pass it (lib/viewer-access.ts); every
+ * other route keeps refusing viewers.
+ */
 export async function requireStaff(
   authorizationHeader: string | null,
+  options: { allowViewer?: boolean } = {},
 ): Promise<RequireStaffResult> {
   const uid = await verifyRequestUserId(authorizationHeader);
   if (!uid) {
@@ -26,6 +32,11 @@ export async function requireStaff(
     const snap = await adminDb().collection("users").doc(uid).get();
     const data = snap.data() as { role?: string; isApproved?: boolean } | undefined;
     const role = data?.role;
+    if (data?.isApproved && role === "viewer") {
+      return options.allowViewer
+        ? { ok: true, uid, role }
+        : { ok: false, status: 403, error: "Your account has read-only access" };
+    }
     if (!data?.isApproved || (role !== "admin" && role !== "agent")) {
       return { ok: false, status: 403, error: "Approved staff access required" };
     }

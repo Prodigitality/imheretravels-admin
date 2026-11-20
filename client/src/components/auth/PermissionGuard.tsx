@@ -1,9 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth-store";
 import { RefreshCw, ShieldX } from "lucide-react";
 import type { UserPermissions } from "@/types/users";
+import { isViewerRole, viewerMayOpen } from "@/lib/viewer-access";
 
 interface PermissionGuardProps {
   permission: keyof UserPermissions;
@@ -15,10 +16,15 @@ export default function PermissionGuard({
   children,
 }: PermissionGuardProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { userProfile } = useAuthStore();
 
-  // Check if user has the required permission
-  const hasPermission = userProfile?.permissions?.[permission] || false;
+  // Check if user has the required permission. A read-only viewer also has
+  // to be on one of their pages (lib/viewer-access.ts): the same flags open
+  // other pages (e.g. canManageTours → Partnerships) that viewers don't get.
+  const hasPermission =
+    (userProfile?.permissions?.[permission] || false) &&
+    (!isViewerRole(userProfile?.role) || viewerMayOpen(pathname ?? ""));
 
   // Handle refresh button click
   const handleRefresh = () => {

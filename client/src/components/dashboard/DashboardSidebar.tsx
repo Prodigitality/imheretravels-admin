@@ -35,6 +35,7 @@ import {
   Inbox,
 } from "lucide-react";
 import { useAuthStore } from "@/store/auth-store";
+import { isViewerRole, viewerMayOpen } from "@/lib/viewer-access";
 import {
   Tooltip,
   TooltipContent,
@@ -182,6 +183,10 @@ export default function DashboardSidebar({
   const isNavActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
   const { userProfile, signOut, isLoading } = useAuthStore();
+  // A read-only viewer only gets their pages (lib/viewer-access.ts), no section separators.
+  const navItems = isViewerRole(userProfile?.role)
+    ? navigation.filter((item) => "href" in item && typeof item.href === "string" && viewerMayOpen(item.href))
+    : navigation;
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const mobileNavRef = useRef<HTMLElement>(null);
   const desktopNavRef = useRef<HTMLElement>(null);
@@ -295,7 +300,7 @@ export default function DashboardSidebar({
             }}
           >
             <TooltipProvider>
-              {navigation.map((item, index) => {
+              {navItems.map((item, index) => {
                 if (item.type === "separator") {
                   // Always show separators on mobile
                   return (
@@ -465,7 +470,7 @@ export default function DashboardSidebar({
             }}
           >
             <TooltipProvider>
-              {navigation.map((item, index) => {
+              {navItems.map((item, index) => {
                 if (item.type === "separator") {
                   if (sidebarCollapsed) return null; // Hide separators when collapsed
                   return (

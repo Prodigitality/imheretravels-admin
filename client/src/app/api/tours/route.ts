@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
  * GET /api/tours - Get all tours with optional filters, sorting, and pagination
  */
 export async function GET(request: NextRequest) {
-  const staff = await requireStaff(request.headers.get("authorization"));
+  const staff = await requireStaff(request.headers.get("authorization"), { allowViewer: true });
   if (!staff.ok) {
     return NextResponse.json({ success: false, error: staff.error }, { status: staff.status });
   }

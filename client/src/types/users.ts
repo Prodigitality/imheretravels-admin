@@ -7,7 +7,8 @@ import { Timestamp } from "firebase/firestore";
 export interface User {
   id: string; // Matches Firebase Auth UID
   email: string;
-  role: "admin" | "agent";
+  /** viewer: read-only staff (lib/viewer-access.ts). */
+  role: UserRole;
   profile: UserProfile;
   permissions: UserPermissions;
   preferences: UserPreferences;
@@ -16,6 +17,9 @@ export interface User {
   isApproved: boolean;
   hasAgreedToTerms: boolean;
   isEmailVerified: boolean;
+  /** Set when an admin invited the account (Settings → User Management). */
+  invitedAt?: Timestamp;
+  invitedBy?: string;
 }
 
 // ============================================================================
@@ -71,7 +75,8 @@ export interface UserMetadata {
 // USER ROLE TYPES
 // ============================================================================
 
-export type UserRole = "admin" | "agent";
+/** viewer: approved read-only access to a few pages (lib/viewer-access.ts). */
+export type UserRole = "admin" | "agent" | "viewer";
 
 export interface RolePermissions {
   admin: UserPermissions;

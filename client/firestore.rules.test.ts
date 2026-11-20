@@ -51,6 +51,10 @@ beforeEach(async () => {
     await setDoc(doc(db, "users", "agent1"), staffUser("agent", true));
     await setDoc(doc(db, "users", "pending1"), staffUser("admin", false));
     await setDoc(doc(db, "users", "odd1"), staffUser("customer", true));
+    await setDoc(doc(db, "users", "viewer1"), staffUser("viewer", true));
+    await setDoc(doc(db, "users", "viewer2"), staffUser("viewer", false));
+    await setDoc(doc(db, "emailTemplates", "e1"), { name: "T" });
+    await setDoc(doc(db, "notifications", "n1"), { title: "New booking", readBy: {} });
     await setDoc(doc(db, "bookings", "b1"), { firstName: "Ana" });
     await setDoc(doc(db, "bookings", "b1", "notes", "n1"), { text: "x" });
     await setDoc(doc(db, "stripePayments", "p1"), { amount: 1 });
@@ -170,5 +174,54 @@ describe("approved admin", () => {
   it("still can't read server-only collections from the browser", async () => {
     await assertFails(getDoc(doc(as("admin1"), "guestPassportData", "x1")));
     await assertFails(getDoc(doc(as("admin1"), "saleEvents", "x1")));
+  });
+});
+
+describe("approved read-only viewer", () => {
+  it("reads what Bookings, Tour Packages and Transactions load", async () => {
+    const db = as("viewer1");
+    await assertSucceeds(getDoc(doc(db, "bookings", "b1")));
+    await assertSucceeds(getDoc(doc(db, "bookings", "b1", "notes", "n1")));
+    await assertSucceeds(getDoc(doc(db, "stripePayments", "p1")));
+    await assertSucceeds(getDoc(doc(db, "config", "c1")));
+    await assertSucceeds(getDoc(doc(db, "tourPackages", "t1")));
+    await assertSucceeds(getDoc(doc(db, "notifications", "n1")));
+  });
+
+  it("writes nothing, not even on the collections it reads", async () => {
+    const db = as("viewer1");
+    await assertFails(setDoc(doc(db, "bookings", "b1"), { firstName: "Changed" }));
+    await assertFails(updateDoc(doc(db, "stripePayments", "p1"), { amount: 0 }));
+    await assertFails(setDoc(doc(db, "bookings", "b2"), { firstName: "New" }));
+    await assertFails(deleteDoc(doc(db, "bookings", "b1")));
+    await assertFails(updateDoc(doc(db, "notifications", "n1"), { "readBy.viewer1": true }));
+    await assertFails(setDoc(doc(db, "tourPackages", "t1"), { name: "hacked" }));
+    await assertFails(setDoc(doc(db, "config", "c1"), { on: false }));
+  });
+
+  it("can't read anything outside its pages or any server-only data", async () => {
+    const db = as("viewer1");
+    await assertFails(getDoc(doc(db, "emailTemplates", "e1")));
+    for (const c of ["saleEvents", "guestPassportData", "partnerApplications", "customerAccounts", "travellerDocuments"]) {
+      await assertFails(getDoc(doc(db, c, "x1")));
+    }
+    await assertFails(getDoc(doc(db, "users", "agent1")));
+  });
+
+  it("can edit its own profile but not its role, approval or permissions", async () => {
+    const db = as("viewer1");
+    await assertSucceeds(getDoc(doc(db, "users", "viewer1")));
+    await assertSucceeds(updateDoc(doc(db, "users", "viewer1"), { "profile.firstName": "Jay" }));
+    await assertFails(updateDoc(doc(db, "users", "viewer1"), { role: "agent" }));
+    await assertFails(updateDoc(doc(db, "users", "viewer1"), { "permissions.canManageUsers": true }));
+  });
+
+  it("an unapproved viewer reads nothing, and nobody can sign themselves up as a viewer", async () => {
+    await assertFails(getDoc(doc(as("viewer2"), "bookings", "b1")));
+    await assertFails(setDoc(doc(as("new9"), "users", "new9"), { ...staffUser("viewer", false) }));
+  });
+
+  it("an admin can make someone a viewer", async () => {
+    await assertSucceeds(updateDoc(doc(as("admin1"), "users", "agent1"), { role: "viewer" }));
   });
 });

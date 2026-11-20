@@ -47,8 +47,22 @@ import {
   Settings,
   Mail,
   Copy,
+  Eye,
+  Send,
+  UserPlus,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { staffFetch } from "@/lib/staff-fetch";
+import { VIEWER_PERMISSIONS } from "@/lib/viewer-access";
+import type { UserRole } from "@/types/users";
 
 interface UserWithId extends UserType {
   id: string;
@@ -62,9 +76,20 @@ export default function UserManagement() {
   const [filterRole, setFilterRole] = useState<string>("all");
   const [filterApproval, setFilterApproval] = useState<string>("all");
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [inviteForm, setInviteForm] = useState<{ email: string; firstName: string; lastName: string; role: "viewer" | "agent" }>({
+    email: "",
+    firstName: "",
+    lastName: "",
+    role: "viewer",
+  });
 
   // Check if current user has permission to manage users
   const canManageUsers = userProfile?.permissions?.canManageUsers;
+  // Roles and invites: admins only (firestore.rules, /api/users/invite).
+  const isAdmin = userProfile?.role === "admin";
+  const isInvited = (u: UserWithId) => !!u.invitedAt && u.hasAgreedToTerms === false;
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -79,10 +104,11 @@ export default function UserManagement() {
           ...doc.data(),
         } as UserWithId;
 
-        // Exclude the current user from the list
+        // Exclude the current user and unfinished self sign-ups; invited
+        // accounts show while they wait (with "Resend invite").
         if (
           userData.id !== userProfile?.id &&
-          userData.hasAgreedToTerms !== false
+          (userData.hasAgreedToTerms !== false || !!userData.invitedAt)
         ) {
           usersData.push(userData);
         }
@@ -143,6 +169,42 @@ export default function UserManagement() {
 
   const toggleUserApproval = async (userId: string, isApproved: boolean) => {
     await updateUser(userId, { isApproved });
+  };
+
+  // Only admins may change a role (firestore.rules); a new viewer gets the
+  // viewer's page flags (lib/viewer-access.ts). Leaving viewer keeps them, to
+  // be adjusted with the switches.
+  const changeRole = async (user: UserWithId, role: UserRole) => {
+    if (role === user.role) return;
+    await updateUser(user.id, role === "viewer" ? { role, permissions: VIEWER_PERMISSIONS } : { role });
+  };
+
+  const sendInvite = async (invite: { email: string; firstName: string; lastName: string; role: "viewer" | "agent" }) => {
+    setInviting(true);
+    try {
+      const res = await staffFetch("/api/users/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(invite),
+      });
+      const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to send the invite");
+      toast({ title: "Invite sent", description: `${invite.email} will get an email to set their password.` });
+      setInviteOpen(false);
+      setInviteForm({ email: "", firstName: "", lastName: "", role: "viewer" });
+      await fetchUsers();
+      return true;
+    } catch (error) {
+      toast({
+        title: "Couldn't send the invite",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+      await fetchUsers();
+      return false;
+    } finally {
+      setInviting(false);
+    }
   };
 
   const togglePermission = async (
@@ -214,6 +276,12 @@ export default function UserManagement() {
           </p>
         </div>
         <div className="flex space-x-2">
+          {isAdmin && (
+            <Button onClick={() => setInviteOpen(true)} className="bg-primary text-white hover:bg-primary/90">
+              <UserPlus className="mr-2 h-4 w-4" />
+              Invite user
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={fetchUsers}
@@ -262,6 +330,7 @@ export default function UserManagement() {
                   <SelectItem value="all">All Roles</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="agent">Agent</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -347,18 +416,35 @@ export default function UserManagement() {
                         </div>
                       </TableCell>
                       <TableCell className="py-4">
-                        <Badge
-                          variant={
-                            user.role === "admin" ? "destructive" : "secondary"
-                          }
-                          className={
-                            user.role === "admin"
-                              ? "bg-crimson-red/20 text-crimson-red border border-crimson-red/30"
-                              : "bg-royal-purple/20 text-royal-purple border border-royal-purple/30"
-                          }
-                        >
-                          {user.role}
-                        </Badge>
+                        {isAdmin ? (
+                          <Select
+                            value={user.role}
+                            onValueChange={(v) => void changeRole(user, v as UserRole)}
+                            disabled={updatingUser === user.id}
+                          >
+                            <SelectTrigger className="w-28" aria-label={`Role of ${user.email}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="agent">Agent</SelectItem>
+                              <SelectItem value="viewer">Viewer</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge
+                            variant={
+                              user.role === "admin" ? "destructive" : "secondary"
+                            }
+                            className={
+                              user.role === "admin"
+                                ? "bg-crimson-red/20 text-crimson-red border border-crimson-red/30"
+                                : "bg-royal-purple/20 text-royal-purple border border-royal-purple/30"
+                            }
+                          >
+                            {user.role}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="py-4">
                         <div className="flex items-center space-x-2">
@@ -384,6 +470,42 @@ export default function UserManagement() {
                             </div>
                           )}
 
+                          {isInvited(user) && (
+                            <div className="flex flex-wrap items-center gap-2 rounded-md border border-royal-purple/20 bg-royal-purple/5 p-2">
+                              <p className="text-xs text-foreground">
+                                Invited: waiting for them to set a password and finish sign-up.
+                              </p>
+                              {isAdmin && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  disabled={inviting}
+                                  onClick={() =>
+                                    void sendInvite({
+                                      email: user.email,
+                                      firstName: user.profile?.firstName ?? "",
+                                      lastName: user.profile?.lastName ?? "",
+                                      role: user.role === "agent" ? "agent" : "viewer",
+                                    })
+                                  }
+                                >
+                                  <Send className="mr-1 h-3 w-3" /> Resend invite
+                                </Button>
+                              )}
+                            </div>
+                          )}
+
+                          {user.role === "viewer" ? (
+                            <div className="flex items-start gap-2 rounded-md border border-royal-purple/20 bg-muted/30 p-3">
+                              <Eye className="mt-0.5 h-4 w-4 shrink-0 text-royal-purple" />
+                              <p className="text-xs text-foreground">
+                                <span className="font-medium">Read-only.</span> Can view Bookings, Tour Packages
+                                (including the sale&apos;s slot tracker), Enquiries and Transactions. Can&apos;t change
+                                anything. Change the role to give edit rights.
+                              </p>
+                            </div>
+                          ) : (
                           <div className="grid grid-cols-2 gap-3">
                             {/* Bookings Permission */}
                             <div className="flex items-center justify-between p-2 bg-muted/30 rounded-md border border-royal-purple/20 dark:border-border">
@@ -628,6 +750,7 @@ export default function UserManagement() {
                               />
                             </div>
                           </div>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -638,6 +761,68 @@ export default function UserManagement() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={inviteOpen} onOpenChange={(o) => !inviting && setInviteOpen(o)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite user</DialogTitle>
+            <DialogDescription>
+              We email them a link to choose their own password. They then finish sign-up (name and terms) and can sign
+              in straight away: the account is already approved with the role you pick.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void sendInvite({ ...inviteForm, email: inviteForm.email.trim() });
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="invite-email">Email</Label>
+              <Input
+                id="invite-email"
+                type="email"
+                required
+                placeholder="name@imheretravels.com"
+                value={inviteForm.email}
+                onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-first">First name</Label>
+                <Input id="invite-first" value={inviteForm.firstName} onChange={(e) => setInviteForm((f) => ({ ...f, firstName: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-last">Last name</Label>
+                <Input id="invite-last" value={inviteForm.lastName} onChange={(e) => setInviteForm((f) => ({ ...f, lastName: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="invite-role">Role</Label>
+              <Select value={inviteForm.role} onValueChange={(v) => setInviteForm((f) => ({ ...f, role: v as "viewer" | "agent" }))}>
+                <SelectTrigger id="invite-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="viewer">Viewer (read-only: Bookings, Tour Packages, Enquiries, Transactions)</SelectItem>
+                  <SelectItem value="agent">Agent (switch on what they can manage after)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={inviting} onClick={() => setInviteOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={inviting || !inviteForm.email.trim()}>
+                {inviting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                Send invite
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

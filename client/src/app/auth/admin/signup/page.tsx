@@ -26,6 +26,7 @@ import { updateProfile } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import { useAuthStore } from "@/store/auth-store";
 import { toast } from "@/hooks/use-toast";
+import type { UserRole } from "@/types/users";
 import { useRouter } from "next/navigation";
 
 export default function AdminSignupPage() {
@@ -51,7 +52,7 @@ export default function AdminSignupPage() {
     firstName: "",
     lastName: "",
     email: "",
-    role: "admin" as "agent" | "admin",
+    role: "admin" as UserRole,
     password: "",
     confirmPassword: "",
     avatar: null as File | null,
@@ -324,7 +325,8 @@ export default function AdminSignupPage() {
         const user = await signUp(formData.email, formData.password, {
           firstName: formData.firstName,
           lastName: formData.lastName,
-          role: formData.role,
+          // Self sign-up is admin or agent; "viewer" only comes from an invite.
+          role: formData.role === "viewer" ? "agent" : formData.role,
         });
 
         // Send email verification
@@ -1131,6 +1133,8 @@ export default function AdminSignupPage() {
           <h2 className="font-hk-grotesk text-2xl font-medium mb-4">
             {formData.role === "admin"
               ? "Administrative Access"
+              : formData.role === "viewer"
+              ? "Read-only Access"
               : "Agent Access"}
           </h2>
           <div className="space-y-4 font-dm-sans text-sm">
@@ -1191,7 +1195,7 @@ export default function AdminSignupPage() {
                 </h3>
                 <p className="text-grey font-dm-sans text-sm">
                   Please wait while we set up your{" "}
-                  {formData.role === "admin" ? "administrator" : "agent"}{" "}
+                  {formData.role === "admin" ? "administrator" : formData.role === "viewer" ? "read-only" : "agent"}{" "}
                   account...
                 </p>
               </div>
