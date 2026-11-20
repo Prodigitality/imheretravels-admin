@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronRight, Download, Inbox, Loader2, Mail, Paperclip, RefreshCw, Search } from "lucide-react";
+import { ChevronRight, Download, Inbox, Loader2, Mail, MailSearch, Paperclip, RefreshCw, Search } from "lucide-react";
+import { gmailComposeUrl, gmailLeadSearchUrl } from "@/lib/gmail-links";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -424,19 +425,16 @@ function ApplicationDetail({
     }
   }
 
-  // Opens a Gmail compose window in a new tab (same account as the header's
-  // "Open Gmail" button). A plain mailto: did nothing without a desktop mail app.
-  const replyUrl = (() => {
-    const firstName = app.name.split(/\s+/)[0] || "";
-    const params = new URLSearchParams({
-      view: "cm",
-      fs: "1",
-      to: app.email,
-      su: `Your I'm Here Travels ${app.type === "supplier" ? "supplier enquiry" : `${app.type} application`}`,
-      body: `Hi ${firstName},\n\n`,
-    });
-    return `https://mail.google.com/mail/u/0/?${params.toString()}`;
-  })();
+  // "View in Gmail" finds the emails the website sent for this application
+  // (the applicant's confirmation carries its id), so a reply stays in that
+  // thread. "New email" is a fresh Gmail compose (same account as the header's
+  // "Open Gmail" button; a plain mailto: did nothing without a desktop mail app).
+  const viewUrl = gmailLeadSearchUrl(app.id, app.email);
+  const replyUrl = gmailComposeUrl(
+    app.email,
+    `Your I'm Here Travels ${app.type === "supplier" ? "supplier enquiry" : `${app.type} application`}`,
+    `Hi ${app.name.split(/\s+/)[0] || ""},\n\n`,
+  );
 
   return (
     <div className="space-y-6">
@@ -461,8 +459,13 @@ function ApplicationDetail({
           </SelectContent>
         </Select>
         <Button variant="outline" asChild>
-          <a href={replyUrl} target="_blank" rel="noopener noreferrer">
-            <Mail className="mr-2 size-4" /> Reply
+          <a href={viewUrl} target="_blank" rel="noopener noreferrer" title="Open this application's emails in Gmail, then reply in the applicant's thread">
+            <MailSearch className="mr-2 size-4" /> View in Gmail
+          </a>
+        </Button>
+        <Button variant="outline" asChild>
+          <a href={replyUrl} target="_blank" rel="noopener noreferrer" title="Start a new email to the applicant">
+            <Mail className="mr-2 size-4" /> New email
           </a>
         </Button>
         {app.attachment && (

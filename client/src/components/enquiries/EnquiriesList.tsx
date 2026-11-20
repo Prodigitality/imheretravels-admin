@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronRight, ExternalLink, FlaskConical, Inbox, Loader2, Mail, MessageCircle, Phone, RefreshCw, Search } from "lucide-react";
+import { ChevronRight, ExternalLink, FlaskConical, Inbox, Loader2, Mail, MailSearch, MessageCircle, Phone, RefreshCw, Search } from "lucide-react";
+import { gmailComposeUrl, gmailLeadSearchUrl } from "@/lib/gmail-links";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -420,18 +421,15 @@ function EnquiryDetail({
     }
   }
 
-  // Gmail compose in a new tab, same as Partnerships (mailto: needs a desktop mail app).
-  const replyUrl = (() => {
-    const firstName = item.name.split(/\s+/)[0] || "";
-    const params = new URLSearchParams({
-      view: "cm",
-      fs: "1",
-      to: item.email,
-      su: item.tour?.name ? `Your enquiry about ${item.tour.name}` : "Your message to I'm Here Travels",
-      body: `Hi ${firstName},\n\n`,
-    });
-    return `https://mail.google.com/mail/u/0/?${params.toString()}`;
-  })();
+  // "View in Gmail" finds the emails the website sent for this enquiry (the
+  // customer's receipt carries its id), so a reply stays in that thread.
+  // "New email" is a fresh Gmail compose (mailto: needs a desktop mail app).
+  const viewUrl = gmailLeadSearchUrl(item.id, item.email);
+  const replyUrl = gmailComposeUrl(
+    item.email,
+    item.tour?.name ? `Your enquiry about ${item.tour.name}` : "Your message to I'm Here Travels",
+    `Hi ${item.name.split(/\s+/)[0] || ""},\n\n`,
+  );
   const wa = whatsappUrl(item.phone);
   const isTest = isTestEnquiry(item);
   const auto = looksLikeTest(item);
@@ -496,8 +494,13 @@ function EnquiryDetail({
           </SelectContent>
         </Select>
         <Button variant="outline" asChild>
-          <a href={replyUrl} target="_blank" rel="noopener noreferrer">
-            <Mail className="mr-2 size-4" /> Reply
+          <a href={viewUrl} target="_blank" rel="noopener noreferrer" title="Open this enquiry's emails in Gmail, then reply in the customer's thread">
+            <MailSearch className="mr-2 size-4" /> View in Gmail
+          </a>
+        </Button>
+        <Button variant="outline" asChild>
+          <a href={replyUrl} target="_blank" rel="noopener noreferrer" title="Start a new email to the customer">
+            <Mail className="mr-2 size-4" /> New email
           </a>
         </Button>
         {wa && (
