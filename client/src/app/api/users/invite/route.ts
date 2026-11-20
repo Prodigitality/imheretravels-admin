@@ -15,6 +15,19 @@ export const dynamic = "force-dynamic";
 const ADMIN_BASE_URL = process.env.NEXT_PUBLIC_ADMIN_BASE_URL || "https://admin.imheretravels.com";
 const EMAIL_RE = /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/;
 
+/** A short, safe reason for the admin's toast: the error code, or a trimmed message. */
+function errorCode(e: unknown): string {
+  const err = e as { code?: unknown; message?: unknown; response?: { data?: { error?: { message?: unknown } } } };
+  const code = typeof err?.code === "string" ? err.code : typeof err?.code === "number" ? String(err.code) : "";
+  const msg =
+    typeof err?.response?.data?.error?.message === "string"
+      ? err.response.data.error.message
+      : typeof err?.message === "string"
+        ? err.message
+        : "unknown error";
+  return [code, msg.slice(0, 120)].filter(Boolean).join(": ");
+}
+
 const NO_PERMISSIONS: UserPermissions = {
   canManageBookings: false,
   canManageTours: false,
@@ -107,8 +120,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Couldn't create the account" }, { status: 500 });
   }
 
+  // Step 1: the "choose your password" link. With a continue URL, Firebase
+  // sends them back to sign-up afterwards, but only if that domain is in the
+  // project's authorized domains; without one the link still works.
+  let link: string;
   try {
-    const link = await auth.generatePasswordResetLink(email, { url: `${ADMIN_BASE_URL}/auth/admin/signup` });
+    link = await auth
+      .generatePasswordResetLink(email, { url: `${ADMIN_BASE_URL}/auth/admin/signup` })
+      .catch((e: { code?: string }) => {
+        console.warn("[users/invite] password link with continue URL refused, retrying without", e?.code, e);
+        return auth.generatePasswordResetLink(email);
+      });
+  } catch (e) {
+    console.error("[users/invite] password link failed", e);
+    return NextResponse.json(
+      { success: false, uid, error: `The account is ready, but Firebase wouldn't create the password link (${errorCode(e)}). Try "Resend invite".` },
+      { status: 502 },
+    );
+  }
+
+  // Step 2: the email, from bella@'s Gmail.
+  try {
     const inviter = await db.collection("users").doc(admin.uid).get();
     const inviterName = [inviter.get("profile.firstName"), inviter.get("profile.lastName")].filter(Boolean).join(" ") || "The I'm Here Travels team";
     const { subject, html } = buildInviteEmail({ firstName, role, inviterName, setPasswordUrl: link, signupUrl: `${ADMIN_BASE_URL}/auth/admin/signup` });
@@ -116,7 +148,7 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     console.error("[users/invite] invite email failed", e);
     return NextResponse.json(
-      { success: false, uid, error: "The account is ready, but the invite email couldn't be sent. Try \"Resend invite\"." },
+      { success: false, uid, error: `The account is ready, but Gmail couldn't send the invite (${errorCode(e)}). Try "Resend invite".` },
       { status: 502 },
     );
   }
