@@ -35,18 +35,45 @@ const PAID_STATUSES = ["reserve_paid", "terms_selected", "succeeded"];
 const MAX_SENDS_PER_RUN = 50;
 const CROSS_DRAFT_DEDUPE_DAYS = 7;
 
-const TEMPLATE_NAMES: Record<FollowUpStage, string> = {
-  first: "abandonedBookingFollowUp1",
-  second: "abandonedBookingFollowUp2",
+/**
+ * "booking": an ordinary unpaid booking form, resumed from the saved draft.
+ * "sale": the draft came from a sale hold (e.g. Black Friday). The hold has
+ * expired by the time we email, so the copy says the sale price is still
+ * available until the sale ends and the button goes to the sale page.
+ */
+type FollowUpVariant = "booking" | "sale";
+
+const TEMPLATE_NAMES: Record<FollowUpVariant, Record<FollowUpStage, string>> = {
+  booking: {
+    first: "abandonedBookingFollowUp1",
+    second: "abandonedBookingFollowUp2",
+  },
+  sale: {
+    first: "abandonedSaleFollowUp1",
+    second: "abandonedSaleFollowUp2",
+  },
 };
 
-const DEFAULT_SUBJECTS: Record<FollowUpStage, (vars: TemplateVars) => string> =
-  {
+const DEFAULT_SUBJECTS: Record<
+  FollowUpVariant,
+  Record<FollowUpStage, (vars: TemplateVars) => string>
+> = {
+  booking: {
     first: (vars) =>
       `${vars.firstName}, need a hand completing your ${vars.tourPackageName} booking?`,
     second: (vars) =>
       `Still thinking it over? Your spot on ${vars.tourPackageName} is waiting`,
-  };
+  },
+  sale: {
+    first: (vars) =>
+      `${vars.firstName}, your ${vars.saleName} price on ${vars.tourPackageName} is still available`,
+    second: (vars) =>
+      `Still thinking it over? ${vars.saleName} prices end ${vars.saleEndsShort}`,
+  },
+};
+
+/** Public site, where sale pages live at /{slug}. */
+const WWW_BASE_URL = "https://www.imheretravels.com";
 
 interface TemplateVars {
   firstName: string;
@@ -57,6 +84,100 @@ interface TemplateVars {
   unsubscribeUrl: string;
   tourPackageCoverImage: string;
   currentYear: string;
+  /** Sale variant only (empty otherwise). */
+  saleName: string;
+  saleUrl: string;
+  /** e.g. "23:59 UK time on Tuesday 1 December" */
+  saleEndsLabel: string;
+  /** e.g. "1 December" (subject line) */
+  saleEndsShort: string;
+}
+
+interface SaleContext {
+  name: string;
+  url: string;
+  endsLabel: string;
+  endsShort: string;
+}
+
+function tsToMillis(value: unknown): number | null {
+  if (!value) return null;
+  if (value instanceof Timestamp) return value.toMillis();
+  const v = value as { toMillis?: () => number; _seconds?: number; seconds?: number };
+  if (typeof v.toMillis === "function") return v.toMillis();
+  if (typeof v._seconds === "number") return v._seconds * 1000;
+  if (typeof v.seconds === "number") return v.seconds * 1000;
+  if (typeof value === "string") {
+    const ms = Date.parse(value);
+    return Number.isNaN(ms) ? null : ms;
+  }
+  return null;
+}
+
+/** Sale end in UK time, the way the sale page and the ads state it. */
+export function formatSaleEnd(endMs: number | null): {
+  label: string;
+  short: string;
+} {
+  if (endMs === null) return { label: "the sale ends", short: "soon" };
+  const d = new Date(endMs);
+  const time = d.toLocaleTimeString("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const day = d.toLocaleDateString("en-GB", {
+    timeZone: "Europe/London",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  const short = d.toLocaleDateString("en-GB", {
+    timeZone: "Europe/London",
+    day: "numeric",
+    month: "long",
+  });
+  return { label: `${time} UK time on ${day}`, short };
+}
+
+/**
+ * The sale a held draft came from, if it is still taking holds. Returns a
+ * suppression reason once the sale has ended, been paused, or been removed:
+ * the sale price no longer exists, so there is nothing to follow up on.
+ */
+async function loadSaleContext(
+  saleId: string,
+  nowMs: number
+): Promise<
+  { ok: true; sale: SaleContext } | { ok: false; reason: "sale_ended" | "sale_unavailable" }
+> {
+  const snap = await db.collection("saleEvents").doc(saleId).get();
+  if (!snap.exists) return { ok: false, reason: "sale_unavailable" };
+  const raw = snap.data() || {};
+  const endMs = tsToMillis(raw.endAt);
+  if (endMs !== null && nowMs >= endMs) return { ok: false, reason: "sale_ended" };
+  if (raw.status === "ended") return { ok: false, reason: "sale_ended" };
+  if (raw.status !== "live") return { ok: false, reason: "sale_unavailable" };
+  const slug = typeof raw.slug === "string" ? raw.slug : "";
+  if (!/^[a-z0-9-]+$/.test(slug)) return { ok: false, reason: "sale_unavailable" };
+
+  const url = new URL(`${WWW_BASE_URL}/${slug}`);
+  url.searchParams.set("utm_source", "followup-email");
+  url.searchParams.set("utm_medium", "email");
+  url.searchParams.set("utm_campaign", slug);
+  const ends = formatSaleEnd(endMs);
+  return {
+    ok: true,
+    sale: {
+      name: sanitizeHeaderValue(
+        (typeof raw.name === "string" && raw.name.trim()) || "sale"
+      ),
+      url: url.toString(),
+      endsLabel: ends.label,
+      endsShort: ends.short,
+    },
+  };
 }
 
 interface RunStats {
@@ -179,9 +300,10 @@ async function resolveTemplate(
   // Subject is a plain-text header, so it must use un-HTML-escaped names
   // (otherwise "Danielle & Erin" becomes "Danielle &amp; Erin"). Body keeps
   // the escaped `vars`. Defaults to `vars` for backward compatibility.
-  subjectVars: TemplateVars = vars
+  subjectVars: TemplateVars = vars,
+  variant: FollowUpVariant = "booking"
 ): Promise<{ subject: string; htmlContent: string }> {
-  const templateName = TEMPLATE_NAMES[stage];
+  const templateName = TEMPLATE_NAMES[variant][stage];
   let rawHtml = "";
   let rawSubject = "";
 
@@ -220,7 +342,7 @@ async function resolveTemplate(
   const htmlContent = EmailTemplateService.processTemplate(rawHtml, vars);
   const subject = rawSubject
     ? EmailTemplateService.processTemplate(rawSubject, subjectVars)
-    : DEFAULT_SUBJECTS[stage](subjectVars);
+    : DEFAULT_SUBJECTS[variant][stage](subjectVars);
 
   return { subject, htmlContent };
 }
@@ -498,9 +620,26 @@ export const sendAbandonedBookingFollowUps = onSchedule(
             continue;
           }
 
+          // Sale hold: follow up only while the sale is still on, and point
+          // to the sale page (the hold itself expired long ago).
+          let sale: SaleContext | null = null;
+          const saleId =
+            typeof data.sale?.saleId === "string" ? data.sale.saleId : "";
+          if (saleId) {
+            const saleResult = await loadSaleContext(saleId, now.toMillis());
+            if (!saleResult.ok) {
+              logger.info(`⏭️ ${fresh.id}: ${saleResult.reason} (${saleId})`);
+              if (!dryRun) await markSuppressed(docRef, saleResult.reason);
+              stats.skipped++;
+              continue;
+            }
+            sale = saleResult.sale;
+          }
+          const variant: FollowUpVariant = sale ? "sale" : "booking";
+
           if (dryRun) {
             logger.info(
-              `🧪 [dry-run] Would send ${stage} follow-up to ${email} for "${data.tour?.packageName}" (doc ${fresh.id})`
+              `🧪 [dry-run] Would send ${stage} ${variant} follow-up to ${email} for "${data.tour?.packageName}" (doc ${fresh.id})`
             );
             sends++;
             continue;
@@ -581,6 +720,10 @@ export const sendAbandonedBookingFollowUps = onSchedule(
             unsubscribeUrl: `${baseUrl}/unsubscribe?token=${contact.unsubscribeToken}`,
             tourPackageCoverImage: coverImage,
             currentYear: new Date().getFullYear().toString(),
+            saleName: escapeHtml(sale?.name || ""),
+            saleUrl: sale?.url || "",
+            saleEndsLabel: sale?.endsLabel || "",
+            saleEndsShort: sale?.endsShort || "",
           };
 
           // Subject line is plain text, so reuse the sanitized-but-unescaped
@@ -590,12 +733,14 @@ export const sendAbandonedBookingFollowUps = onSchedule(
             firstName,
             tourPackageName,
             tourDate: formatTourDate(data.tour?.date),
+            saleName: sale?.name || "",
           };
 
           const { subject, htmlContent } = await resolveTemplate(
             stage,
             vars,
-            subjectVars
+            subjectVars,
+            variant
           );
 
           // Sanitize the subject for SMTP header safety (in addition to the

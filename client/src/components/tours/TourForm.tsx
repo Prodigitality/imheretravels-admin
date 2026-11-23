@@ -878,7 +878,9 @@ export default function TourForm({ onClose, onSubmit, tour, isLoading = false }:
     resolver: zodResolver(schema),
     defaultValues: {
       name: "", slug: "", url: "", tourCode: "", description: "",
-      duration: "1 days", cardHeaderTitle: "11 Day Tour", cardSubHeader: "Destination", status: "draft",
+      duration: "1 days", // cardSubHeader starts empty: "Destination" is only the placeholder. A saved
+      // "Destination" showed on the sale card instead of the tour's destinations.
+      cardHeaderTitle: "11 Day Tour", cardSubHeader: "", status: "draft",
       scheduledPublishAt: "",
       comingSoon: false, isHosted: false, bookingSlug: "", previousSlugs: [], seo: { title: "", description: "" },
       destinations: [],
