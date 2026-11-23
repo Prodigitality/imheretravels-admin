@@ -142,6 +142,42 @@ export function formatSaleEnd(endMs: number | null): {
 }
 
 /**
+ * A draft without a `sale` snapshot can still come from a sale hold: the
+ * snapshot is only written once the card payment step loads, so a hold that
+ * ran out before then leaves a plain draft. Treat it as a sale follow-up when
+ * the same email held this tour in a sale up to 3 days before the draft (or
+ * just after it), so the email never sends them back to the regular price.
+ */
+async function findRecentSaleHoldSaleId(
+  email: string,
+  packageId: string,
+  draftCreatedMs: number
+): Promise<string> {
+  if (!email || !packageId) return "";
+  try {
+    const snap = await db
+      .collection("saleHolds")
+      .where("email", "==", email.trim().toLowerCase())
+      .limit(50)
+      .get();
+    let best: { saleId: string; createdMs: number } | null = null;
+    for (const doc of snap.docs) {
+      const h = doc.data();
+      if (h.tourPackageId !== packageId || typeof h.saleId !== "string") continue;
+      const createdMs = tsToMillis(h.createdAt);
+      if (createdMs === null) continue;
+      if (createdMs < draftCreatedMs - 72 * 3600_000) continue;
+      if (createdMs > draftCreatedMs + 3600_000) continue;
+      if (!best || createdMs > best.createdMs) best = { saleId: h.saleId, createdMs };
+    }
+    return best?.saleId || "";
+  } catch (error) {
+    logger.warn(`Sale hold lookup failed for ${email}:`, error);
+    return "";
+  }
+}
+
+/**
  * The sale a held draft came from, if it is still taking holds. Returns a
  * suppression reason once the sale has ended, been paused, or been removed:
  * the sale price no longer exists, so there is nothing to follow up on.
@@ -624,7 +660,13 @@ export const sendAbandonedBookingFollowUps = onSchedule(
           // to the sale page (the hold itself expired long ago).
           let sale: SaleContext | null = null;
           const saleId =
-            typeof data.sale?.saleId === "string" ? data.sale.saleId : "";
+            typeof data.sale?.saleId === "string" && data.sale.saleId
+              ? data.sale.saleId
+              : await findRecentSaleHoldSaleId(
+                  email,
+                  data.tour?.packageId || "",
+                  tsToMillis(data.timestamps?.createdAt) ?? now.toMillis()
+                );
           if (saleId) {
             const saleResult = await loadSaleContext(saleId, now.toMillis());
             if (!saleResult.ok) {
