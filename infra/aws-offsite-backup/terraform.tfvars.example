@@ -1,0 +1,3 @@
+# Copy to terraform.tfvars (gitignored).
+gcp_service_account_unique_id = "" # 21-digit uniqueId of the export function's service account
+alert_email                   = "" # where backup alerts go

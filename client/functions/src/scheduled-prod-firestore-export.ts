@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { openOffsiteSink, readOffsiteConfig } from "./offsite-backup";
 
 if (getApps().length === 0) {
   initializeApp();
@@ -47,6 +48,16 @@ type ExportResult = {
   error?: string;
 };
 
+// Writes the same bytes off-site (S3). Never throws; failures are counted.
+type CopyOffsite = (storagePath: string, body: string) => Promise<void>;
+
+type OffsiteStatus = {
+  enabled: boolean;
+  bucket?: string;
+  failed: number;
+  setupError?: string;
+};
+
 type ExportSummary = {
   timestamp: string;
   exportedAt: string;
@@ -65,6 +76,7 @@ type ExportSummary = {
   errors: number;
   totalDocuments: number;
   results: ExportResult[];
+  offsite: OffsiteStatus;
 };
 
 function getProjectId(): string {
@@ -108,14 +120,17 @@ async function saveJson(
   bucket: Bucket,
   storagePath: string,
   value: unknown,
+  copyOffsite: CopyOffsite,
 ): Promise<void> {
-  await bucket.file(storagePath).save(JSON.stringify(value, null, 2), {
+  const body = JSON.stringify(value, null, 2);
+  await bucket.file(storagePath).save(body, {
     resumable: false,
     metadata: {
       contentType: "application/json",
       cacheControl: "no-store",
     },
   });
+  await copyOffsite(storagePath, body);
 }
 
 async function exportCollection(
@@ -123,6 +138,7 @@ async function exportCollection(
   runStoragePath: string,
   timestamp: string,
   collectionName: string,
+  copyOffsite: CopyOffsite,
 ): Promise<ExportResult> {
   logger.info("Exporting Firestore collection", { collectionName });
 
@@ -145,7 +161,7 @@ async function exportCollection(
 
     const filename = `${collectionName}-${timestamp}.json`;
     const storagePath = `${runStoragePath}/collections/${filename}`;
-    await saveJson(bucket, storagePath, data);
+    await saveJson(bucket, storagePath, data, copyOffsite);
 
     logger.info("Collection export uploaded", {
       collectionName,
@@ -183,6 +199,7 @@ function createSummary(
   bucketName: string,
   runStoragePath: string,
   results: ExportResult[],
+  offsite: OffsiteStatus,
 ): ExportSummary {
   return {
     timestamp,
@@ -203,6 +220,7 @@ function createSummary(
     errors: results.filter((result) => result.status === "error").length,
     totalDocuments: results.reduce((sum, result) => sum + result.count, 0),
     results,
+    offsite,
   };
 }
 
@@ -232,11 +250,43 @@ export const exportProdFirestoreCollections = onSchedule(
     const runStoragePath = `${STORAGE_ROOT}/${datePath}/${timestamp}`;
     const bucket = storage.bucket();
 
+    // Off-site copy (S3, separate account). Disabled when not configured; a
+    // half-configured setup is recorded as an error rather than skipped.
+    const offsite: OffsiteStatus = { enabled: false, failed: 0 };
+    let sink: ReturnType<typeof openOffsiteSink> | null = null;
+    try {
+      const offsiteConfig = readOffsiteConfig();
+      if (offsiteConfig) {
+        sink = openOffsiteSink(offsiteConfig);
+        offsite.enabled = true;
+        offsite.bucket = sink.bucket;
+      }
+    } catch (error) {
+      offsite.setupError = getErrorMessage(error);
+      logger.error("Off-site backup misconfigured", {
+        error: offsite.setupError,
+      });
+    }
+
+    const copyOffsite: CopyOffsite = async (storagePath, body) => {
+      if (!sink) return;
+      try {
+        await sink.put(storagePath, body);
+      } catch (error) {
+        offsite.failed += 1;
+        logger.error("Off-site copy failed", {
+          storagePath,
+          error: getErrorMessage(error),
+        });
+      }
+    };
+
     logger.info("Starting prod Firestore export", {
       projectId,
       bucketName: bucket.name,
       runStoragePath,
       collectionCount: COLLECTIONS.length,
+      offsiteBucket: offsite.bucket ?? null,
     });
 
     const results: ExportResult[] = [];
@@ -247,6 +297,7 @@ export const exportProdFirestoreCollections = onSchedule(
         runStoragePath,
         timestamp,
         collectionName,
+        copyOffsite,
       );
       results.push(result);
     }
@@ -258,15 +309,19 @@ export const exportProdFirestoreCollections = onSchedule(
       bucket.name,
       runStoragePath,
       results,
+      offsite,
     );
     const summaryFilename = `_export-summary-${timestamp}.json`;
     const summaryStoragePath = `${runStoragePath}/${summaryFilename}`;
 
-    await saveJson(bucket, summaryStoragePath, summary);
-    await saveJson(bucket, `${STORAGE_ROOT}/latest/_export-summary.json`, {
-      ...summary,
-      summaryStoragePath,
-    });
+    await saveJson(bucket, summaryStoragePath, summary, copyOffsite);
+    // Written last: the AWS monitor treats this file as "the run finished".
+    await saveJson(
+      bucket,
+      `${STORAGE_ROOT}/latest/_export-summary.json`,
+      { ...summary, summaryStoragePath },
+      copyOffsite,
+    );
 
     logger.info("Prod Firestore export completed", {
       totalDocuments: summary.totalDocuments,
@@ -274,11 +329,18 @@ export const exportProdFirestoreCollections = onSchedule(
       empty: summary.empty,
       errors: summary.errors,
       summaryStoragePath,
+      offsite,
     });
 
     if (summary.errors > 0) {
       throw new Error(
         `Prod Firestore export finished with ${summary.errors} error(s)`,
+      );
+    }
+    if (offsite.setupError || offsite.failed > 0) {
+      throw new Error(
+        `Off-site backup incomplete: ${offsite.failed} failed copy(ies)` +
+          (offsite.setupError ? `, setup: ${offsite.setupError}` : ""),
       );
     }
   },
