@@ -468,6 +468,27 @@ export async function deleteTour(id: string): Promise<void> {
   }
 }
 
+/** What deleting a tour would affect (see /api/tours/[id]/usage). */
+export interface TourUsage {
+  bookings: {
+    total: number;
+    /** Not cancelled. */
+    active: number;
+    /** Not cancelled and no review yet: these lose the chance to review. */
+    canStillReview: number;
+  };
+  reviews: { total: number; published: number };
+}
+
+export async function getTourUsage(id: string): Promise<TourUsage> {
+  const response = await staffFetch(`${API_BASE}/${id}/usage`);
+  const data = await response.json();
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || "Failed to check tour usage");
+  }
+  return data.usage as TourUsage;
+}
+
 // Soft delete - mark as archived instead of deleting
 export async function archiveTour(id: string): Promise<void> {
   try {

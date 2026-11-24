@@ -27,16 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -74,6 +64,7 @@ import {
   duplicateTour,
 } from "@/services/tours-service";
 import TourDetails from "./TourDetails";
+import DeleteTourDialog from "./DeleteTourDialog";
 
 /**
  * Which slice of `tourPackages` this list renders. Hosted tours are flagged on
@@ -1134,34 +1125,15 @@ export default function ToursList({ view = "all" }: ToursListProps) {
         }
       />
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog
+      {/* Delete confirmation: shows the reviews kept and the travellers who
+          lose the review form, and offers archiving instead. */}
+      <DeleteTourDialog
+        tour={tourToDelete}
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
-      >
-        <AlertDialogContent className="border border-royal-purple/20 dark:border-border">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-foreground">
-              Are you sure?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-muted-foreground">
-              This action cannot be undone. This will permanently delete the
-              tour "{tourToDelete?.name}" and remove all associated data.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="border-royal-purple/20 text-royal-purple hover:bg-royal-purple/10 hover:border-royal-purple">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteTour}
-              className="bg-crimson-red hover:bg-crimson-red/90 text-white"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onDelete={handleDeleteTour}
+        onArchive={handleArchiveTour}
+      />
     </div>
   );
 }

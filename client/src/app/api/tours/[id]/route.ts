@@ -249,6 +249,12 @@ export async function PATCH(
 
 /**
  * DELETE /api/tours/[id] - Delete a tour
+ *
+ * Removes only the tourPackages doc. Bookings and reviews (tourReviews) are
+ * kept on purpose: reviews stay on the website's Reviews page. Travellers on
+ * the tour can no longer leave a review, because the website's review form
+ * only offers existing tours. The admin confirms that in DeleteTourDialog,
+ * which reads the counts from ./usage.
  */
 export async function DELETE(
   request: NextRequest,
